@@ -1,0 +1,149 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Firebase Phone Auth puts the verified number in the ID token in
+    // E.164 form (e.g. "+919550788350") — every phone value stored in
+    // Firestore (Building.adminPhone, Flat.phone) must be normalized to
+    // the same E.164 form at write time for these checks to match.
+    function phone() {
+      return request.auth.token.phone_number;
+    }
+
+    // This app manages exactly one building total (see SocietyProvider's
+    // schema note) — there is no other building to accidentally leak data
+    // to, so "signed in" already means "member of the only building that
+    // exists." Deliberately does NOT depend on a users/{uid} profile doc,
+    // since the app never writes one (kept as a genuinely optional,
+    // unused-for-now collection below).
+    function isMember(buildingId) {
+      return isSignedIn();
+    }
+
+    function building(buildingId) {
+      return get(/databases/$(database)/documents/buildings/$(buildingId)).data;
+    }
+
+    // Authority for "who is admin" is the phone bound to the seat, not a
+    // uid — this is what lets transferAdmin hand the seat to a phone
+    // number that has never signed in yet (its future uid is unknowable).
+    function isBuildingAdmin(buildingId) {
+      return isSignedIn() && building(buildingId).adminPhone == phone();
+    }
+
+    function flat(buildingId, flatNumber) {
+      return get(/databases/$(database)/documents/buildings/$(buildingId)/flats/$(flatNumber)).data;
+    }
+
+    // A flat is "owned" the moment its stored phone matches the signed-in
+    // phone — same phone-based reasoning as admin, and (unlike a uid) it
+    // works retroactively for a flat pre-added by the admin before its
+    // resident ever signs in.
+    function ownsFlat(buildingId, flatNumber) {
+      return isSignedIn() && flat(buildingId, flatNumber).phone == phone();
+    }
+
+    // users/{uid} — per-user data, never building-scoped. Nothing else in
+    // these rules depends on it, so it stays fully isolated from the
+    // isMember/isBuildingAdmin model: no admin or fellow resident can ever
+    // read another user's data here, by construction.
+    match /users/{uid} {
+      allow read, create, update: if isSignedIn() && request.auth.uid == uid;
+      allow delete: if false;
+
+      // A resident's own personal spending — has nothing to do with the
+      // building's shared finances, so it lives here instead of under
+      // buildings/{id}.
+      match /personalExpenses/{expenseId} {
+        allow read, create, update, delete:
+          if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    match /buildings/{buildingId} {
+      // Building basics (name/joinCode/etc.) are readable pre-membership so
+      // a new admin/resident can look one up while signing up.
+      allow read: if isSignedIn();
+
+      // First admin creates their own building, self-assigning as admin
+      // via their own verified phone.
+      allow create: if isSignedIn() && request.resource.data.adminPhone == phone();
+
+      // Only the bound admin can update building fields (including handing
+      // adminPhone to someone else — mirrors the app's transferAdmin flow).
+      allow update: if isBuildingAdmin(buildingId);
+      allow delete: if false;
+
+      match /flats/{flatNumber} {
+        allow read: if isMember(buildingId);
+        allow create: if isBuildingAdmin(buildingId);
+        allow delete: if isBuildingAdmin(buildingId);
+
+        // Admin can edit anything. A resident may only ever touch their own
+        // flat (phone already matches — the admin sets it when adding the
+        // flat) — to update their display name, and to flip passwordSet
+        // once at signup (see SocietyProvider.claimFlatForSignup) — never
+        // balances, tanker-exempt status, or phone.
+        allow update: if isBuildingAdmin(buildingId)
+          || (ownsFlat(buildingId, flatNumber)
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['residentName', 'passwordSet']));
+      }
+
+      match /issues/{issueId} {
+        allow read: if isMember(buildingId);
+        allow create: if isBuildingAdmin(buildingId)
+          || ownsFlat(buildingId, request.resource.data.flatNumber);
+        allow update, delete: if isBuildingAdmin(buildingId)
+          || ownsFlat(buildingId, resource.data.flatNumber);
+      }
+
+      match /posts/{postId} {
+        // Only the admin creates/deletes notices; any building member can
+        // update (likes/comments are embedded, bounded fields).
+        allow read: if isMember(buildingId);
+        allow create, delete: if isBuildingAdmin(buildingId);
+        allow update: if isMember(buildingId);
+      }
+
+      match /months/{monthId} {
+        allow read: if isMember(buildingId);
+        allow write: if isBuildingAdmin(buildingId);
+
+        match /expenses/{expenseId} {
+          allow read: if isMember(buildingId);
+          allow write: if isBuildingAdmin(buildingId);
+        }
+
+        match /advances/{advanceId} {
+          allow read: if isMember(buildingId);
+          allow write: if isBuildingAdmin(buildingId);
+        }
+
+        match /readings/{flatNumber} {
+          allow read: if isMember(buildingId);
+          allow write: if isBuildingAdmin(buildingId);
+        }
+
+        match /bills/{flatNumber} {
+          allow read: if isBuildingAdmin(buildingId) || ownsFlat(buildingId, flatNumber);
+          // Bills are generated by the admin only.
+          allow create: if isBuildingAdmin(buildingId);
+          // Admin can confirm/edit anything. A resident may only upload
+          // their own payment screenshot — never set status to confirmed
+          // or touch any amount field themselves.
+          allow update: if isBuildingAdmin(buildingId)
+            || (ownsFlat(buildingId, flatNumber)
+                && request.resource.data.diff(resource.data).affectedKeys()
+                     .hasOnly(['screenshotAdded', 'paymentScreenshotUrl', 'screenshotSubmittedAt', 'status'])
+                && request.resource.data.status == 'screenshotUploaded');
+          allow delete: if isBuildingAdmin(buildingId);
+        }
+      }
+    }
+  }
+}
