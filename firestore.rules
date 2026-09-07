@@ -86,12 +86,13 @@ service cloud.firestore {
 
         // Admin can edit anything. A resident may only ever touch their own
         // flat (phone already matches — the admin sets it when adding the
-        // flat) — to update their display name, and to flip passwordSet
-        // once at signup (see SocietyProvider.claimFlatForSignup) — never
-        // balances, tanker-exempt status, or phone.
+        // flat) — to update their display name, to flip passwordSet once
+        // at signup (see SocietyProvider.claimFlatForSignup), and to keep
+        // their own push-notification token current (PushNotificationService)
+        // — never balances, tanker-exempt status, or phone.
         allow update: if isBuildingAdmin(buildingId)
           || (ownsFlat(buildingId, flatNumber)
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['residentName', 'passwordSet']));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['residentName', 'passwordSet', 'fcmToken']));
       }
 
       match /issues/{issueId} {

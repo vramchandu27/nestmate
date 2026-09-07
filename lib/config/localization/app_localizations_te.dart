@@ -300,6 +300,7 @@ class AppLocalizationsTe {
     // Admin: add expense
     'expenseNameLabel': 'దేని కోసం',
     'categoryLabel': 'వర్గం',
+    'specifyCategoryHint': 'దయచేసి తెలియజేయండి',
     'amountLabel': 'మొత్తం',
     'splitAcross': 'వీటి మధ్య పంచండి',
     'allFlatsOption': 'అన్ని ఫ్లాట్‌లు',

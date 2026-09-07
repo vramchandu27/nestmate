@@ -260,6 +260,7 @@ class _GroupSummaryCard extends StatelessWidget {
     waterCalc: society.waterCalc,
     exemptFlatNumbers: society.exemptFlatNumbers,
     commonSharePaisePerFlat: society.commonSharePaisePerFlat,
+    waterChargePaiseFor: society.waterChargePaiseFor,
   );
 
   @override

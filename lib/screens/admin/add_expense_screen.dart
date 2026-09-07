@@ -27,6 +27,7 @@ class AddExpenseScreen extends StatefulWidget {
 class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _nameCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
+  final _otherCategoryCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String? _category;
   ExpenseSplitRule _splitRule = ExpenseSplitRule.allFlats;
@@ -41,6 +42,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   void dispose() {
     _nameCtrl.dispose();
     _amountCtrl.dispose();
+    _otherCategoryCtrl.dispose();
     super.dispose();
   }
 
@@ -49,6 +51,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final categories = society.building.commonCategories;
+    final category = _category == 'Other'
+        ? _otherCategoryCtrl.text.trim()
+        : (_category ?? categories.first);
     final expenseId = 'exp${DateTime.now().microsecondsSinceEpoch}';
     setState(() => _isLoading = true);
     var receiptFailed = false;
@@ -72,7 +77,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         Expense(
           id: expenseId,
           name: _nameCtrl.text.trim(),
-          category: _category ?? categories.first,
+          category: category,
           amountPaise: parseRupeesToPaise(_amountCtrl.text),
           splitRule: _splitRule,
           specificFlatNumbers: _specificFlats.toList(),
@@ -154,6 +159,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                             .toList(),
                         onChanged: (v) => setState(() => _category = v),
                       ),
+                      if (_category == 'Other') ...[
+                        const SizedBox(height: 8),
+                        TextFormField(
+                          controller: _otherCategoryCtrl,
+                          enabled: !_isLoading,
+                          textCapitalization: TextCapitalization.words,
+                          decoration: InputDecoration(
+                            hintText: AppLocalizations.t(
+                              'specifyCategoryHint',
+                            ),
+                          ),
+                          validator: (v) => (v == null || v.trim().isEmpty)
+                              ? AppLocalizations.t('fieldRequired')
+                              : null,
+                        ),
+                      ],
                       const SizedBox(height: 16),
                       Text(
                         AppLocalizations.t('amountLabel'),

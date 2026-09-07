@@ -61,70 +61,64 @@ class ExpensesScreen extends StatelessWidget {
               children: [
                 ScreenHeader(title: AppLocalizations.t('monthExpenses')),
                 Expanded(
-                  child: month.expenses.isEmpty && month.advances.isEmpty
-                      ? EmptyState(
-                          icon: Icons.request_quote_outlined,
-                          title: AppLocalizations.t('emptyExpensesTitle'),
-                          subtitle: AppLocalizations.t('emptyExpensesSub'),
-                          actionLabel: AppLocalizations.t('addFirstExpense'),
-                          onAction: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const AddExpenseScreen(),
-                            ),
-                          ),
-                        )
-                      : ListView(
-                          padding: const EdgeInsets.all(20),
-                          children: [
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _ActionCard(
-                                    icon: Icons.receipt_long_rounded,
-                                    label: AppLocalizations.t('addExpense'),
-                                    background: AppTheme.roseBg,
-                                    iconColor: AppTheme.rose,
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const AddExpenseScreen(),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: _ActionCard(
-                                    icon: Icons.account_balance_wallet_rounded,
-                                    label: AppLocalizations.t('addAdvance'),
-                                    background: AppTheme.sageBg,
-                                    iconColor: AppTheme.sageDark,
-                                    onTap: () => Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            const AddAdvanceScreen(),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-                            NavListTile(
-                              icon: Icons.water_drop_rounded,
-                              title: AppLocalizations.t('waterCalculation'),
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      // Always visible — adding an advance shouldn't
+                      // require adding an expense first just to reach it.
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _ActionCard(
+                              icon: Icons.receipt_long_rounded,
+                              label: AppLocalizations.t('addExpense'),
+                              background: AppTheme.roseBg,
+                              iconColor: AppTheme.rose,
                               onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (_) => const WaterCalculatorScreen(),
+                                  builder: (_) => const AddExpenseScreen(),
                                 ),
                               ),
                             ),
-                            const SizedBox(height: 6),
-                            for (final e in month.expenses)
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ActionCard(
+                              icon: Icons.account_balance_wallet_rounded,
+                              label: AppLocalizations.t('addAdvance'),
+                              background: AppTheme.sageBg,
+                              iconColor: AppTheme.sageDark,
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const AddAdvanceScreen(),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      NavListTile(
+                        icon: Icons.water_drop_rounded,
+                        title: AppLocalizations.t('waterCalculation'),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const WaterCalculatorScreen(),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (month.expenses.isEmpty && month.advances.isEmpty)
+                        EmptyState(
+                          icon: Icons.request_quote_outlined,
+                          title: AppLocalizations.t('emptyExpensesTitle'),
+                          subtitle: AppLocalizations.t('emptyExpensesSub'),
+                        )
+                      else ...[
+                        for (final e in month.expenses)
                               AppCard(
                                 margin: const EdgeInsets.only(bottom: 9),
                                 child: Column(
@@ -236,7 +230,8 @@ class ExpensesScreen extends StatelessWidget {
                                 ),
                               ),
                           ],
-                        ),
+                    ],
+                  ),
                 ),
                 if (flatNumbers.isNotEmpty)
                   Padding(

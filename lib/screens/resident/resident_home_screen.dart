@@ -45,6 +45,7 @@ class BuildingTabScreen extends StatelessWidget {
             name: app.userName ?? flat?.residentName ?? '',
             flatNumber: flatNumber,
             onTapAvatar: onOpenProfile,
+            photoUrl: app.userPhotoUrl,
           ),
           Expanded(
             child: SingleChildScrollView(
@@ -163,11 +164,13 @@ class _Header extends StatelessWidget {
     required this.name,
     required this.flatNumber,
     this.onTapAvatar,
+    this.photoUrl,
   });
 
   final String name;
   final String flatNumber;
   final VoidCallback? onTapAvatar;
+  final String? photoUrl;
 
   @override
   Widget build(BuildContext context) {
@@ -181,14 +184,19 @@ class _Header extends StatelessWidget {
             child: CircleAvatar(
               radius: 24,
               backgroundColor: AppTheme.primary,
-              child: Text(
-                initial,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w800,
-                  fontSize: 19,
-                ),
-              ),
+              backgroundImage: photoUrl != null
+                  ? NetworkImage(photoUrl!)
+                  : null,
+              child: photoUrl != null
+                  ? null
+                  : Text(
+                      initial,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 19,
+                      ),
+                    ),
             ),
           ),
           const SizedBox(width: 13),

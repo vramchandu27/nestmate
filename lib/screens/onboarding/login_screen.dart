@@ -100,31 +100,16 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    // Resident password login has no OTP step, so this is the only guard
-    // that the flat actually belongs to this phone — same roster check
-    // signup uses. See SocietyProvider.checkFlatClaim.
-    if (!_isAdminMode && _isPasswordMode) {
-      final errorKey = await context.read<SocietyProvider>().checkFlatClaim(
-        flatNumber: flatNumber,
-        phone: phone,
-      );
-      if (!mounted) return;
-      if (errorKey != null) {
-        setState(() {
-          if (errorKey == 'flatNotFound') {
-            _flatNumberError = AppLocalizations.t(errorKey);
-          } else {
-            _phoneError = AppLocalizations.t(errorKey);
-          }
-        });
-        _formKey.currentState!.validate();
-        return;
-      }
-    }
-
     setState(() => _isLoading = true);
 
     if (_isPasswordMode) {
+      // checkFlatClaim reads Firestore, and every read in this app requires
+      // being signed in already — running it before the real sign-in
+      // below throws permission-denied once the device has no lingering
+      // session (e.g. right after a real logout). So the password check
+      // has to happen FIRST, then checkFlatClaim as a second guard on top
+      // of an already-authenticated session.
+      String? flatClaimErrorKey;
       try {
         await withLoadingOverlay(context, () async {
           // Real password check — signs into the Firebase credential
@@ -136,6 +121,24 @@ class _LoginScreenState extends State<LoginScreen> {
             password: _passwordController.text,
           );
           if (!mounted) return;
+
+          // Resident password login has no OTP step, so this is the only
+          // guard that the flat actually belongs to this phone — same
+          // roster check signup uses. See SocietyProvider.checkFlatClaim.
+          if (!_isAdminMode) {
+            flatClaimErrorKey = await context
+                .read<SocietyProvider>()
+                .checkFlatClaim(flatNumber: flatNumber, phone: phone);
+            if (!mounted) return;
+            if (flatClaimErrorKey != null) {
+              // The password matched, but the typed flat number doesn't —
+              // don't leave a signed-in session behind for a login
+              // attempt that didn't actually succeed.
+              await FirebaseAuth.instance.signOut();
+              return;
+            }
+          }
+
           // Keep the overlay up through sign-in completion and the
           // navigation it triggers too — tearing it down right after the
           // password check succeeds would flash this login screen for a
@@ -163,6 +166,16 @@ class _LoginScreenState extends State<LoginScreen> {
       }
       if (!mounted) return;
       setState(() => _isLoading = false);
+      if (flatClaimErrorKey != null) {
+        setState(() {
+          if (flatClaimErrorKey == 'flatNotFound') {
+            _flatNumberError = AppLocalizations.t(flatClaimErrorKey!);
+          } else {
+            _phoneError = AppLocalizations.t(flatClaimErrorKey!);
+          }
+        });
+        _formKey.currentState!.validate();
+      }
       return;
     }
 

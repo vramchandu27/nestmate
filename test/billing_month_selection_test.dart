@@ -28,9 +28,10 @@ void main() {
       waterCalc: society.waterCalc,
       exemptFlatNumbers: society.exemptFlatNumbers,
       commonSharePaisePerFlat: society.commonSharePaisePerFlat,
+      waterChargePaiseFor: society.waterChargePaiseFor,
     );
-    expect(groupMessage, contains('AUGUST month expenses'));
-    expect(groupMessage, isNot(contains('JULY')));
+    expect(groupMessage, contains('August 2026 Expenses'));
+    expect(groupMessage, isNot(contains('July')));
 
     final bill = society.billForResident(society.flats.first.flatNumber);
     final billMessage = buildBillMessage(

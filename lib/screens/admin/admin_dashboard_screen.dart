@@ -64,17 +64,22 @@ class AdminDashboardScreen extends StatelessWidget {
                     child: CircleAvatar(
                       radius: 24,
                       backgroundColor: AppTheme.primary,
-                      child: Text(
-                        (app.userName ?? building.adminName).isNotEmpty
-                            ? (app.userName ?? building.adminName)[0]
-                                  .toUpperCase()
-                            : '?',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w800,
-                          fontSize: 19,
-                        ),
-                      ),
+                      backgroundImage: app.userPhotoUrl != null
+                          ? NetworkImage(app.userPhotoUrl!)
+                          : null,
+                      child: app.userPhotoUrl != null
+                          ? null
+                          : Text(
+                              (app.userName ?? building.adminName).isNotEmpty
+                                  ? (app.userName ?? building.adminName)[0]
+                                        .toUpperCase()
+                                  : '?',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w800,
+                                fontSize: 19,
+                              ),
+                            ),
                     ),
                   ),
                   const SizedBox(width: 13),
@@ -326,6 +331,7 @@ class AdminDashboardScreen extends StatelessWidget {
                                       icon: Icons.trending_up_rounded,
                                       text:
                                           '${(society.collectionPercent * 100).round()}% ${AppLocalizations.t('collected').toLowerCase()}',
+                                      animateIcon: true,
                                     ),
                                   ],
                                 ),
@@ -529,10 +535,18 @@ class AdminDashboardScreen extends StatelessWidget {
 }
 
 class _GlassPill extends StatelessWidget {
-  const _GlassPill({required this.icon, required this.text});
+  const _GlassPill({
+    required this.icon,
+    required this.text,
+    this.animateIcon = false,
+  });
 
   final IconData icon;
   final String text;
+
+  /// Gives the icon a gentle, continuous upward nudge — used for the
+  /// trending-up "collected" pill, not the QR-code one.
+  final bool animateIcon;
 
   @override
   Widget build(BuildContext context) {
@@ -545,7 +559,9 @@ class _GlassPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, color: Colors.white, size: 13),
+          animateIcon
+              ? _BouncingIcon(icon: icon)
+              : Icon(icon, color: Colors.white, size: 13),
           const SizedBox(width: 6),
           Text(
             text,
@@ -557,6 +573,51 @@ class _GlassPill extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// A small, continuous upward bob for an icon — just enough life to draw
+/// the eye to the collection-rate pill without being distracting. Falls
+/// back to a static icon when the OS's reduce-motion setting is on.
+class _BouncingIcon extends StatefulWidget {
+  const _BouncingIcon({required this.icon});
+
+  final IconData icon;
+
+  @override
+  State<_BouncingIcon> createState() => _BouncingIconState();
+}
+
+class _BouncingIconState extends State<_BouncingIcon>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat(reverse: true);
+  late final Animation<double> _offset = Tween<double>(
+    begin: 0,
+    end: -2.5,
+  ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (MediaQuery.of(context).disableAnimations) {
+      return Icon(widget.icon, color: Colors.white, size: 13);
+    }
+    return AnimatedBuilder(
+      animation: _offset,
+      builder: (context, child) => Transform.translate(
+        offset: Offset(0, _offset.value),
+        child: child,
+      ),
+      child: Icon(widget.icon, color: Colors.white, size: 13),
     );
   }
 }

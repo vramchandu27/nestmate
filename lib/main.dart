@@ -4,10 +4,12 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:provider/provider.dart';
 import 'config/app_theme.dart';
 import 'config/localization/app_localizations.dart';
+import 'config/routing.dart';
 import 'firebase_options.dart';
 import 'providers/app_provider.dart';
 import 'providers/personal_expense_provider.dart';
 import 'providers/society_provider.dart';
+import 'services/push_notification_service.dart';
 import 'screens/onboarding/language_selection_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
 import 'screens/onboarding/login_screen.dart';
@@ -32,10 +34,13 @@ import 'screens/admin/add_notice_screen.dart';
 import 'screens/admin/transfer_admin_screen.dart';
 import 'screens/committee/committee_dashboard_screen.dart';
 
+final navigatorKey = GlobalKey<NavigatorState>();
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  PushNotificationService().init(navigatorKey);
 
   // Initialize localization with default language
   AppLocalizations.setLanguage(AppLanguage.english);
@@ -52,6 +57,42 @@ void main() async {
   );
 }
 
+/// Checked once at app launch, before anything else — Firebase already
+/// keeps a signed-in session alive across restarts on its own, but nothing
+/// was ever checking for it, so the app always forced Welcome → Login
+/// again regardless. This resumes straight to the right dashboard when
+/// [tryResumeSession] finds a still-valid session (signed in AND logged in
+/// within the last week), falling back to the normal Language Selection
+/// flow otherwise.
+class _AuthGate extends StatefulWidget {
+  const _AuthGate();
+
+  @override
+  State<_AuthGate> createState() => _AuthGateState();
+}
+
+class _AuthGateState extends State<_AuthGate> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _resume());
+  }
+
+  Future<void> _resume() async {
+    final route = await tryResumeSession(context);
+    if (!mounted) return;
+    Navigator.of(context).pushReplacementNamed(route ?? '/language');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      backgroundColor: AppTheme.background,
+      body: Center(child: CircularProgressIndicator()),
+    );
+  }
+}
+
 class NestMateApp extends StatelessWidget {
   const NestMateApp({super.key});
 
@@ -60,6 +101,7 @@ class NestMateApp extends StatelessWidget {
     return Consumer<AppProvider>(
       builder: (context, appProvider, _) {
         return MaterialApp(
+          navigatorKey: navigatorKey,
           title: 'NestMate',
           theme: AppTheme.lightTheme(language: appProvider.language),
           locale: appProvider.locale,
@@ -70,7 +112,7 @@ class NestMateApp extends StatelessWidget {
           ],
           supportedLocales: AppLocalizations.supportedLocales,
           debugShowCheckedModeBanner: false,
-          home: const LanguageSelectionScreen(),
+          home: const _AuthGate(),
           // Navigation routes
           routes: {
             '/language': (context) => const LanguageSelectionScreen(),

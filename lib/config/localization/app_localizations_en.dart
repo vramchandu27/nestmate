@@ -298,6 +298,7 @@ class AppLocalizationsEn {
     // Admin: add expense
     'expenseNameLabel': 'What was it for',
     'categoryLabel': 'Category',
+    'specifyCategoryHint': 'Please specify',
     'amountLabel': 'Amount',
     'splitAcross': 'Split across',
     'allFlatsOption': 'All flats',

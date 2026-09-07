@@ -4,13 +4,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/mock_seed.dart';
 import '../models/role.dart';
 import '../providers/app_provider.dart';
 import '../providers/society_provider.dart';
+import '../services/push_notification_service.dart';
 import '../services/storage_service.dart';
 import '../widgets/loading_overlay.dart';
+
+/// How long a signed-in session stays valid with no fresh login — matches
+/// [tryResumeSession]. Each successful sign-in (including a resumed one)
+/// resets the clock, so this is a rolling window from last use, not a
+/// fixed expiry from the very first login.
+const _sessionValidity = Duration(days: 7);
+const _lastLoginPrefsKey = 'lastLoginAtMillis';
 
 /// Decides where to land the user right after a successful login / OTP /
 /// signup, based on their role and how far along the admin setup flow is.
@@ -54,6 +63,7 @@ Future<void> completeSignIn(
   final society = context.read<SocietyProvider>();
   final uid = FirebaseAuth.instance.currentUser?.uid ?? '';
   final photoUrl = await _fetchProfilePhotoUrl(uid);
+  await _recordLoginTimestamp();
 
   if (appProvider.userRole.isAdmin) {
     if (phone != null && phone.isNotEmpty) {
@@ -69,6 +79,8 @@ Future<void> completeSignIn(
       userPhone: phone,
       userPhotoUrl: photoUrl,
     );
+    if (!context.mounted) return;
+    await PushNotificationService().registerToken(context);
     return;
   }
 
@@ -80,6 +92,8 @@ Future<void> completeSignIn(
       userName: 'Committee Member',
       userPhotoUrl: photoUrl,
     );
+    if (!context.mounted) return;
+    await PushNotificationService().registerToken(context);
     return;
   }
 
@@ -98,15 +112,109 @@ Future<void> completeSignIn(
     userPhone: flat?.phone,
     userPhotoUrl: photoUrl,
   );
+  if (!context.mounted) return;
+  await PushNotificationService().registerToken(context);
+}
+
+Future<void> _recordLoginTimestamp() async {
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setInt(
+      _lastLoginPrefsKey,
+      DateTime.now().millisecondsSinceEpoch,
+    );
+  } catch (_) {
+    // Worst case, the next app launch just won't auto-resume — never
+    // worth failing sign-in over.
+  }
+}
+
+/// Called once at app launch, before showing Language Selection — Firebase
+/// itself already keeps a signed-in session alive across restarts, but the
+/// app was never checking for it, always forcing Welcome → Login again
+/// regardless. This resumes that session automatically if it's both still
+/// signed in AND the last successful login was within [_sessionValidity];
+/// otherwise it signs out (if stale) and returns null so the normal
+/// Welcome/Login flow shows instead.
+///
+/// Returns the route to land on (same shape as [resolvePostAuthRoute]), or
+/// null if there's nothing to resume. Committee sessions never resume —
+/// that role has no persistent phone-based identity to re-derive from a
+/// bare Firebase user, so a committee member just taps "continue as
+/// committee" again, which is quick anyway.
+Future<String?> tryResumeSession(BuildContext context) async {
+  final user = FirebaseAuth.instance.currentUser;
+  if (user == null) return null;
+
+  try {
+    final prefs = await SharedPreferences.getInstance();
+    final lastLoginMillis = prefs.getInt(_lastLoginPrefsKey);
+    if (lastLoginMillis == null) {
+      await FirebaseAuth.instance.signOut();
+      return null;
+    }
+    final lastLogin = DateTime.fromMillisecondsSinceEpoch(lastLoginMillis);
+    if (DateTime.now().difference(lastLogin) > _sessionValidity) {
+      await FirebaseAuth.instance.signOut();
+      return null;
+    }
+  } catch (_) {
+    return null;
+  }
+
+  final phone = user.phoneNumber;
+  if (phone == null) return null;
+  if (!context.mounted) return null;
+
+  final appProvider = context.read<AppProvider>();
+  final society = context.read<SocietyProvider>();
+
+  try {
+    final buildingDoc = await FirebaseFirestore.instance
+        .collection('buildings')
+        .doc('main')
+        .get()
+        .timeout(const Duration(seconds: 8));
+    if (buildingDoc.data()?['adminPhone'] == phone) {
+      appProvider.setUserRole(UserRole.communityAdmin);
+      if (!context.mounted) return null;
+      await completeSignIn(context, phone: phone);
+      if (!context.mounted) return null;
+      return resolvePostAuthRoute(context);
+    }
+
+    final flat = await society.findFlatByPhone(phone);
+    if (flat != null) {
+      appProvider.setUserRole(UserRole.resident);
+      if (!context.mounted) return null;
+      await completeSignIn(
+        context,
+        phone: phone,
+        flatNumberOverride: flat.flatNumber,
+      );
+      if (!context.mounted) return null;
+      return resolvePostAuthRoute(context);
+    }
+  } catch (_) {
+    // Offline or a genuine lookup failure — fall through to a normal,
+    // explicit login rather than guessing.
+  }
+  return null;
 }
 
 Future<String?> _fetchProfilePhotoUrl(String uid) async {
   if (uid.isEmpty) return null;
   try {
+    // A profile photo is a nice-to-have, not something sign-in should ever
+    // hang on — this document may not be cached locally yet (e.g. first
+    // sign-in on a new device), and a Firestore .get() with no cached data
+    // and a flaky connection can otherwise stall indefinitely with no
+    // built-in timeout of its own.
     final doc = await FirebaseFirestore.instance
         .collection('users')
         .doc(uid)
-        .get();
+        .get()
+        .timeout(const Duration(seconds: 5));
     return doc.data()?['photoUrl'] as String?;
   } catch (_) {
     return null;
@@ -145,6 +253,13 @@ Future<void> updateProfilePhoto(BuildContext context, File? file) async {
 Future<void> performLogout(BuildContext context) async {
   await withLoadingOverlay(context, () async {
     await FirebaseAuth.instance.signOut();
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_lastLoginPrefsKey);
+    } catch (_) {
+      // Already signed out either way — a stale local timestamp alone
+      // can't resume a session with no Firebase user behind it.
+    }
     if (!context.mounted) return;
     context.read<AppProvider>().clearUserInfo();
     Navigator.pushNamedAndRemoveUntil(context, '/language', (_) => false);

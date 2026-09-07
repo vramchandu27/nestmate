@@ -118,7 +118,9 @@ class _BlockSetupScreenState extends State<BlockSetupScreen> {
           content: Text(AppLocalizations.t('errorOccurred')),
           backgroundColor: AppTheme.error,
           behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+          ),
         ),
       );
     }

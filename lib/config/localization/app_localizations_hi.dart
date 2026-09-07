@@ -298,6 +298,7 @@ class AppLocalizationsHi {
     // Admin: add expense
     'expenseNameLabel': 'यह किस लिए था',
     'categoryLabel': 'श्रेणी',
+    'specifyCategoryHint': 'कृपया बताएं',
     'amountLabel': 'राशि',
     'splitAcross': 'इनमें बांटें',
     'allFlatsOption': 'सभी फ्लैट्स',
