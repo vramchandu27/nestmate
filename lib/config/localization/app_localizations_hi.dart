@@ -123,7 +123,7 @@ class AppLocalizationsHi {
     'paymentConfirmed': 'भुगतान की पुष्टि हुई',
     'paymentConfirmedByAdminLabel': 'एडमिन द्वारा भुगतान की पुष्टि की गई',
     'reportIssue': 'समस्या दर्ज करें',
-    'communityNotices': 'कम्युनिटी सूचनाएं',
+    'communityNotices': 'सूचनाएं',
     'postNoticeSub': 'भवन के सभी लोगों को पोस्ट करें',
     'joinCommunity': 'कम्युनिटी से जुड़ें',
     'logout': 'लॉगआउट',
@@ -179,25 +179,26 @@ class AppLocalizationsHi {
         'यह फोन नंबर इस फ्लैट के रिकॉर्ड से मेल नहीं खाता। अपने एडमिन से संपर्क करें।',
     'adminAlreadyExists':
         'इस बिल्डिंग का एडमिन पहले से मौजूद है। उनसे अपना फ्लैट जुड़वाएं, या हैंडओवर का अनुरोध करें।',
+    'phoneNotRegistered':
+        'इस नंबर के लिए कोई खाता नहीं मिला। कृपया पहले साइन अप करें।',
     'invalidOtp': 'अमान्य OTP। कृपया फिर से प्रयास करें।',
     'otpSendFailed': 'OTP नहीं भेजा जा सका। कृपया फिर से प्रयास करें।',
     'otpSent': 'आपके फोन नंबर पर OTP भेजा गया।',
 
     // Resident shell / nav
     'navBuilding': 'बिल्डिंग',
-    'navCommunity': 'कम्युनिटी',
+    'navCommunity': 'सूचनाएं',
     'navProfile': 'प्रोफ़ाइल',
 
     // Community feed
-    'communitySub': 'एसोसिएशन अपडेट',
     'committee': 'एसोसिएशन कमेटी',
     'pinned': 'पिन किया गया',
     'writeComment': 'कमेंट लिखें…',
     'comment': 'कमेंट',
     'comments': 'कमेंट्स',
     'react': 'रिएक्ट',
-    'notJoinedCommunity': 'एसोसिएशन में नहीं हैं',
-    'communityLocked': 'कम्युनिटी अपडेट देखने के लिए एसोसिएशन से जुड़ें',
+    'noNoticesYetTitle': 'अभी तक कोई सूचना नहीं',
+    'noNoticesYetSub': 'आपके एडमिन के अपडेट यहां दिखेंगे',
 
     // Profile
     'yourFlat': 'आपका फ्लैट',
@@ -309,6 +310,11 @@ class AppLocalizationsHi {
     'whichFlatFronted': 'किस फ्लैट ने भुगतान किया?',
     'addReceiptOptional': 'रसीद फोटो जोड़ें (वैकल्पिक)',
     'saveExpenseBtn': 'खर्च सेव करें',
+    'editExpense': 'खर्च संपादित करें',
+    'updateExpenseBtn': 'खर्च अपडेट करें',
+    'deleteExpenseTitle': 'खर्च हटाएं?',
+    'deleteExpenseConfirm':
+        'यह इस महीने के खर्चों और बिलों से हट जाएगा। इसे वापस नहीं लाया जा सकता।',
 
     // Admin: add advance
     'advanceReasonLabel': 'कारण',

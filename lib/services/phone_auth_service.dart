@@ -69,12 +69,22 @@ class PhoneAuthService {
       codeAutoRetrievalTimeout: (_) {},
     );
 
-    return completer.future;
+    // verifyPhoneNumber's own `timeout` only bounds the auto-retrieval
+    // phase after a code has already been sent — it does nothing to
+    // guarantee any of the four callbacks above ever fire at all if the
+    // initial network request itself stalls. Without this, a flaky
+    // connection leaves the caller's loading overlay up forever.
+    return completer.future.timeout(
+      const Duration(seconds: 30),
+      onTimeout: () => PhoneCodeResult.failed('Request timed out. Please try again.'),
+    );
   }
 
   /// Verifies [smsCode] against [verificationId] and signs the user in.
   /// Throws [FirebaseAuthException] (e.g. `invalid-verification-code`,
-  /// `session-expired`) on a wrong or expired code.
+  /// `session-expired`) on a wrong or expired code, or [TimeoutException]
+  /// on a stalled connection — callers must handle both rather than
+  /// leaving their loading overlay up forever on an unbounded await.
   Future<UserCredential> confirmCode({
     required String verificationId,
     required String smsCode,
@@ -83,7 +93,9 @@ class PhoneAuthService {
       verificationId: verificationId,
       smsCode: smsCode,
     );
-    return _auth.signInWithCredential(credential);
+    return _auth
+        .signInWithCredential(credential)
+        .timeout(const Duration(seconds: 15));
   }
 
   String _messageFor(Object e) =>

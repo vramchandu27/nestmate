@@ -25,10 +25,8 @@ void main() {
       building: society.building,
       month: society.currentMonth,
       flats: society.flats,
-      waterCalc: society.waterCalc,
       exemptFlatNumbers: society.exemptFlatNumbers,
-      commonSharePaisePerFlat: society.commonSharePaisePerFlat,
-      waterChargePaiseFor: society.waterChargePaiseFor,
+      billFor: society.billForResident,
     );
     expect(groupMessage, contains('August 2026 Expenses'));
     expect(groupMessage, isNot(contains('July')));

@@ -13,36 +13,56 @@ class Comment {
   );
 }
 
-/// A notice-feed post in the joined association's community feed.
+/// A notice-feed post in this building's own notice board.
 class CommunityPost {
   CommunityPost({
     required this.id,
     required this.authorName,
     this.isCommittee = true,
     this.pinned = false,
-    required this.timeLabel,
+    DateTime? createdAt,
     required this.title,
     required this.body,
     this.likeCount = 0,
     List<Comment>? comments,
-  }) : comments = comments ?? [];
+  }) : createdAt = createdAt ?? DateTime.now(),
+       comments = comments ?? [];
 
   final String id;
   final String authorName;
   final bool isCommittee;
   final bool pinned;
-  final String timeLabel;
+  final DateTime createdAt;
   final String title;
   final String body;
   int likeCount;
   List<Comment> comments;
+
+  /// A relative "time ago" label computed fresh every time it's read,
+  /// rather than a string frozen at posting time — that was the bug: a
+  /// stored `timeLabel: 'Just now'` never stopped saying "Just now", no
+  /// matter how much later it was actually viewed.
+  String get timeLabel {
+    final diff = DateTime.now().difference(createdAt);
+    if (diff.inSeconds < 60) return 'Just now';
+    if (diff.inMinutes < 60) {
+      return '${diff.inMinutes}m ago';
+    }
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    return '${createdAt.day} ${months[createdAt.month - 1]}';
+  }
 
   Map<String, dynamic> toMap() => {
     'id': id,
     'authorName': authorName,
     'isCommittee': isCommittee,
     'pinned': pinned,
-    'timeLabel': timeLabel,
+    'createdAt': createdAt.millisecondsSinceEpoch,
     'title': title,
     'body': body,
     'likeCount': likeCount,
@@ -54,7 +74,9 @@ class CommunityPost {
     authorName: map['authorName'] as String? ?? '',
     isCommittee: map['isCommittee'] as bool? ?? true,
     pinned: map['pinned'] as bool? ?? false,
-    timeLabel: map['timeLabel'] as String? ?? '',
+    createdAt: map['createdAt'] != null
+        ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int)
+        : DateTime.now(),
     title: map['title'] as String? ?? '',
     body: map['body'] as String? ?? '',
     likeCount: map['likeCount'] as int? ?? 0,

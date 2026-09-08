@@ -125,8 +125,9 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
     required String name,
   }) async {
     final society = ctx.read<SocietyProvider>();
+    bool isRealAdmin;
     try {
-      await society.claimAdminIfUnbound(phone);
+      isRealAdmin = await society.claimAdminIfUnbound(phone);
     } catch (_) {
       // A failed write here (e.g. a Firestore rules rejection) must not
       // fail silently — the OTP screen that calls this has no other way
@@ -143,6 +144,24 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
       return;
     }
     if (!ctx.mounted) return;
+    if (!isRealAdmin) {
+      // The early canSignInAsAdmin check above is only best-effort (it
+      // reads in-memory data that may not have loaded yet for a phone
+      // nobody has seen before) — this is the real, authoritative result.
+      // Someone else already holds the seat, so this signup must not
+      // proceed as if it had succeeded.
+      await FirebaseAuth.instance.signOut();
+      if (!ctx.mounted) return;
+      ScaffoldMessenger.of(ctx).showSnackBar(
+        SnackBar(
+          content: Text(AppLocalizations.t('adminAlreadyExists')),
+          backgroundColor: AppTheme.error,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      return;
+    }
     // Links a password credential to the phone-verified Firebase user, so
     // the same account can log back in with either OTP or the password
     // just chosen — non-fatal if it fails, since OTP login always works

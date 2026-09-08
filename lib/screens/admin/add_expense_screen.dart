@@ -14,11 +14,15 @@ import '../../widgets/loading_overlay.dart';
 import '../../widgets/photo_picker_field.dart';
 import '../../widgets/screen_header.dart';
 
-/// Add a common-pool expense: what it was for, how much, how it's split,
-/// and — the key offset mechanic — whether a resident fronted it, which
-/// credits that flat's own bill for the full amount.
+/// Add (or edit) a common-pool expense: what it was for, how much, how
+/// it's split, and — the key offset mechanic — whether a resident fronted
+/// it, which credits that flat's own bill for the full amount.
 class AddExpenseScreen extends StatefulWidget {
-  const AddExpenseScreen({super.key});
+  const AddExpenseScreen({super.key, this.existing});
+
+  /// Non-null when reopening this form to edit an already-recorded
+  /// expense, rather than creating a new one.
+  final Expense? existing;
 
   @override
   State<AddExpenseScreen> createState() => _AddExpenseScreenState();
@@ -35,8 +39,31 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   bool _fronted = false;
   String? _frontingFlat;
   File? _receiptFile;
+  String? _existingReceiptUrl;
   bool _isLoading = false;
   bool _submitted = false;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    if (existing == null) return;
+
+    final categories = context.read<SocietyProvider>().building.commonCategories;
+    final isCustomCategory = !categories.contains(existing.category);
+
+    _nameCtrl.text = existing.name;
+    _amountCtrl.text = (existing.amountPaise ~/ 100).toString();
+    _category = isCustomCategory ? 'Other' : existing.category;
+    if (isCustomCategory) _otherCategoryCtrl.text = existing.category;
+    _splitRule = existing.splitRule;
+    _specificFlats.addAll(existing.specificFlatNumbers);
+    _fronted = existing.paidByFlatNumber != null;
+    _frontingFlat = existing.paidByFlatNumber;
+    _existingReceiptUrl = existing.receiptPhotoUrl;
+  }
 
   @override
   void dispose() {
@@ -54,11 +81,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     final category = _category == 'Other'
         ? _otherCategoryCtrl.text.trim()
         : (_category ?? categories.first);
-    final expenseId = 'exp${DateTime.now().microsecondsSinceEpoch}';
+    final expenseId =
+        widget.existing?.id ?? 'exp${DateTime.now().microsecondsSinceEpoch}';
     setState(() => _isLoading = true);
     var receiptFailed = false;
     await withLoadingOverlay(context, () async {
-      String? receiptUrl;
+      String? receiptUrl = _existingReceiptUrl;
       final receipt = _receiptFile;
       if (receipt != null) {
         // A receipt is supplementary — don't block recording the expense
@@ -73,18 +101,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
           receiptFailed = true;
         }
       }
-      await society.addExpense(
-        Expense(
-          id: expenseId,
-          name: _nameCtrl.text.trim(),
-          category: category,
-          amountPaise: parseRupeesToPaise(_amountCtrl.text),
-          splitRule: _splitRule,
-          specificFlatNumbers: _specificFlats.toList(),
-          paidByFlatNumber: _fronted ? _frontingFlat : null,
-          receiptPhotoUrl: receiptUrl,
-        ),
+      final expense = Expense(
+        id: expenseId,
+        name: _nameCtrl.text.trim(),
+        category: category,
+        amountPaise: parseRupeesToPaise(_amountCtrl.text),
+        splitRule: _splitRule,
+        specificFlatNumbers: _specificFlats.toList(),
+        paidByFlatNumber: _fronted ? _frontingFlat : null,
+        receiptPhotoUrl: receiptUrl,
+        createdAt: widget.existing?.createdAt,
       );
+      if (_isEditing) {
+        await society.updateExpense(expense);
+      } else {
+        await society.addExpense(expense);
+      }
     });
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -101,6 +133,35 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     Navigator.pop(context);
   }
 
+  Future<void> _confirmDelete(SocietyProvider society) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(AppLocalizations.t('deleteExpenseTitle')),
+        content: Text(AppLocalizations.t('deleteExpenseConfirm')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: Text(AppLocalizations.t('cancel')),
+          ),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: AppTheme.error),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: Text(AppLocalizations.t('delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() => _isLoading = true);
+    await withLoadingOverlay(context, () async {
+      await society.deleteExpense(widget.existing!.id);
+    });
+    if (!mounted) return;
+    Navigator.pop(context);
+  }
+
   @override
   Widget build(BuildContext context) {
     final society = context.watch<SocietyProvider>();
@@ -113,7 +174,22 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              ScreenHeader(title: AppLocalizations.t('addExpense')),
+              ScreenHeader(
+                title: AppLocalizations.t(
+                  _isEditing ? 'editExpense' : 'addExpense',
+                ),
+                trailing: _isEditing
+                    ? IconButton(
+                        icon: const Icon(
+                          Icons.delete_outline_rounded,
+                          color: AppTheme.error,
+                        ),
+                        onPressed: _isLoading
+                            ? null
+                            : () => _confirmDelete(society),
+                      )
+                    : null,
+              ),
               Expanded(
                 child: Form(
                   key: _formKey,
@@ -298,13 +374,21 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       PhotoPickerField(
                         label: AppLocalizations.t('addReceiptOptional'),
                         file: _receiptFile,
+                        existingUrl: _existingReceiptUrl,
                         height: 100,
-                        onChanged: (f) => setState(() => _receiptFile = f),
+                        onChanged: (f) => setState(() {
+                          _receiptFile = f;
+                          if (f == null) _existingReceiptUrl = null;
+                        }),
                       ),
                       const SizedBox(height: 20),
                       ElevatedButton(
                         onPressed: _isLoading ? null : () => _save(society),
-                        child: Text(AppLocalizations.t('saveExpenseBtn')),
+                        child: Text(
+                          AppLocalizations.t(
+                            _isEditing ? 'updateExpenseBtn' : 'saveExpenseBtn',
+                          ),
+                        ),
                       ),
                     ],
                   ),

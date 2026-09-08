@@ -230,7 +230,7 @@ class MockSeed {
       id: 'post1',
       authorName: 'Association Committee',
       pinned: true,
-      timeLabel: '2 hours ago',
+      createdAt: DateTime.now().subtract(const Duration(hours: 2)),
       title: 'Water supply maintenance — Sunday',
       body:
           'Main line cleaning across all buildings this Sunday 10 AM–2 PM. '
@@ -247,7 +247,7 @@ class MockSeed {
     CommunityPost(
       id: 'post2',
       authorName: 'Association Committee',
-      timeLabel: 'Yesterday',
+      createdAt: DateTime.now().subtract(const Duration(days: 1)),
       title: 'Diwali celebration — 5 Nov',
       body:
           'Community Diwali event at the central park, 6 PM onwards. Snacks '
@@ -257,7 +257,7 @@ class MockSeed {
     CommunityPost(
       id: 'post3',
       authorName: 'Association Committee',
-      timeLabel: '3 days ago',
+      createdAt: DateTime.now().subtract(const Duration(days: 3)),
       title: 'Association meeting minutes',
       body:
           'Minutes from the monthly meeting are now available. Key '

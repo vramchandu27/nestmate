@@ -26,10 +26,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.android:
         return android;
       case TargetPlatform.iOS:
-        throw UnsupportedError(
-          'DefaultFirebaseOptions have not been configured for ios - '
-          'you can reconfigure this by running the FlutterFire CLI again.',
-        );
+        return ios;
       case TargetPlatform.macOS:
         throw UnsupportedError(
           'DefaultFirebaseOptions have not been configured for macos - '
@@ -64,5 +61,13 @@ class DefaultFirebaseOptions {
     projectId: 'nestmate-app',
     authDomain: 'nestmate-app-3a80b.firebaseapp.com',
     storageBucket: 'nestmate-app.firebasestorage.app',
+  );
+  static const FirebaseOptions ios = FirebaseOptions(
+    apiKey: 'AIzaSyDpOhrf86ZK6zLx9ySShKipz3_BsaMWL3U',
+    appId: '1:514839674184:ios:5fae2f781324fdaacf077d',
+    messagingSenderId: '514839674184',
+    projectId: 'nestmate-app',
+    storageBucket: 'nestmate-app.firebasestorage.app',
+    iosBundleId: 'com.nestmate.nestmate',
   );
 }

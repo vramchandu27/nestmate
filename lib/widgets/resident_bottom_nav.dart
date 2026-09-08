@@ -2,28 +2,22 @@ import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import '../config/localization/app_localizations.dart';
 
-/// The resident bottom-nav shell: Building / Community / Profile.
-/// Community tab is omitted entirely when the building hasn't joined an
-/// association — [currentIndex]/[onTap] operate on whichever tab set is
-/// currently showing.
+/// The resident bottom-nav shell: Building / Notices / Profile.
 class ResidentBottomNav extends StatelessWidget {
   const ResidentBottomNav({
     super.key,
     required this.currentIndex,
     required this.onTap,
-    required this.showCommunity,
   });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
-  final bool showCommunity;
 
   @override
   Widget build(BuildContext context) {
     final items = <(IconData, String)>[
       (Icons.home_filled, AppLocalizations.t('navBuilding')),
-      if (showCommunity)
-        (Icons.groups_rounded, AppLocalizations.t('navCommunity')),
+      (Icons.campaign_rounded, AppLocalizations.t('navCommunity')),
       (Icons.person_rounded, AppLocalizations.t('navProfile')),
     ];
 

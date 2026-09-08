@@ -125,7 +125,7 @@ class AppLocalizationsTe {
     'paymentConfirmed': 'చెల్లింపు ఆమోదించబడింది',
     'paymentConfirmedByAdminLabel': 'అడ్మిన్ ద్వారా చెల్లింపు నిర్ధారించబడింది',
     'reportIssue': 'సమస్యను నివేదించండి',
-    'communityNotices': 'సమాజ నోటిసులు',
+    'communityNotices': 'నోటీసులు',
     'postNoticeSub': 'భవనంలో అందరికీ పోస్ట్ చేయండి',
     'joinCommunity': 'కమ్యూనిటీ చేరండి',
     'logout': 'లాగ్‌అవుట్',
@@ -181,25 +181,26 @@ class AppLocalizationsTe {
         'ఈ ఫోన్ నంబర్ ఈ ఫ్లాట్ రికార్డులతో సరిపోలడం లేదు. మీ అడ్మిన్‌ను సంప్రదించండి.',
     'adminAlreadyExists':
         'ఈ భవనానికి ఇప్పటికే ఒక అడ్మిన్ ఉన్నారు. మిమ్మల్ని ఒక ఫ్లాట్‌గా చేర్చమని వారిని అడగండి, లేదా హ్యాండ్‌ఓవర్ కోరండి.',
+    'phoneNotRegistered':
+        'ఈ నంబర్ కోసం ఖాతా కనుగొనబడలేదు. దయచేసి ముందుగా సైన్ అప్ చేయండి.',
     'invalidOtp': 'చెల్లని OTP. దయచేసి మళ్లీ ప్రయత్నించండి.',
     'otpSendFailed': 'OTP పంపడం సాధ్యం కాలేదు. దయచేసి మళ్లీ ప్రయత్నించండి.',
     'otpSent': 'మీ ఫోన్ నంబర్‌కు OTP పంపబడింది.',
 
     // Resident shell / nav
     'navBuilding': 'భవనం',
-    'navCommunity': 'సంఘం',
+    'navCommunity': 'నోటీసులు',
     'navProfile': 'ప్రొఫైల్',
 
     // Community feed
-    'communitySub': 'అసోసియేషన్ అప్‌డేట్‌లు',
     'committee': 'అసోసియేషన్ కమిటీ',
     'pinned': 'పిన్ చేయబడింది',
     'writeComment': 'కామెంట్ రాయండి…',
     'comment': 'కామెంట్',
     'comments': 'కామెంట్‌లు',
     'react': 'రియాక్ట్',
-    'notJoinedCommunity': 'అసోసియేషన్‌లో లేరు',
-    'communityLocked': 'కమ్యూనిటీ అప్‌డేట్‌ల కోసం అసోసియేషన్‌లో చేరండి',
+    'noNoticesYetTitle': 'ఇంకా నోటీసులు లేవు',
+    'noNoticesYetSub': 'మీ అడ్మిన్ అప్‌డేట్‌లు ఇక్కడ కనిపిస్తాయి',
 
     // Profile
     'yourFlat': 'మీ ఫ్లాట్',
@@ -311,6 +312,11 @@ class AppLocalizationsTe {
     'whichFlatFronted': 'ఏ ఫ్లాట్ చెల్లించింది?',
     'addReceiptOptional': 'రసీదు ఫోటో జోడించండి (ఐచ్ఛికం)',
     'saveExpenseBtn': 'ఖర్చును సేవ్ చేయండి',
+    'editExpense': 'ఖర్చును సవరించండి',
+    'updateExpenseBtn': 'ఖర్చును అప్‌డేట్ చేయండి',
+    'deleteExpenseTitle': 'ఖర్చును తొలగించాలా?',
+    'deleteExpenseConfirm':
+        'ఇది ఈ నెల ఖర్చులు మరియు బిల్లుల నుండి తీసివేయబడుతుంది. దీన్ని వెనక్కి తీసుకోలేరు.',
 
     // Admin: add advance
     'advanceReasonLabel': 'కారణం',

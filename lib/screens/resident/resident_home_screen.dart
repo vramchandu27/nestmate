@@ -410,25 +410,47 @@ class _BillHeroCard extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 18),
-          SizedBox(
-            width: double.infinity,
-            height: 50,
-            child: ElevatedButton(
-              onPressed: onPay,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.white,
-                foregroundColor: AppTheme.primary,
-              ),
-              child: Text(
-                isConfirmed
-                    ? AppLocalizations.t('paymentConfirmedByAdminLabel')
-                    : isAwaitingConfirmation
-                    ? AppLocalizations.t('awaitingConfirmationLabel')
-                    : '${AppLocalizations.t('pay')} ${formatPaise(bill.amountDuePaise)}',
-                style: const TextStyle(fontWeight: FontWeight.w800),
+          if (isConfirmed)
+            // Nothing left to do here — no onPressed, and deliberately not
+            // styled like a button (no elevation/fill implying tappability)
+            // so it doesn't read as an action the resident can still take.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  AppLocalizations.t('paymentConfirmedByAdminLabel'),
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 14,
+                  ),
+                ),
+              ],
+            )
+          else
+            SizedBox(
+              width: double.infinity,
+              height: 50,
+              child: ElevatedButton(
+                onPressed: onPay,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.white,
+                  foregroundColor: AppTheme.primary,
+                ),
+                child: Text(
+                  isAwaitingConfirmation
+                      ? AppLocalizations.t('awaitingConfirmationLabel')
+                      : '${AppLocalizations.t('pay')} ${formatPaise(bill.amountDuePaise)}',
+                  style: const TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ),
-          ),
         ],
       ),
     );

@@ -50,11 +50,16 @@ String resolvePostAuthRoute(BuildContext context) {
 ///   the flat a signup just validated against the roster — see
 ///   [SocietyProvider.claimFlatForSignup]); otherwise looks up the flat
 ///   whose stored phone matches [phone] (a returning resident logging back
-///   in), falling back to the seeded demo resident only if that also comes
-///   up empty (e.g. mock mode, or a phone that was never actually claimed).
-/// Call this once, right after real phone verification succeeds, before
-/// navigating with [resolvePostAuthRoute].
-Future<void> completeSignIn(
+///   in). In mock mode only, a miss falls back to the seeded demo resident
+///   so the widget-test/demo build always has something to show; in real
+///   mode a miss returns `false` instead — a phone number with no matching
+///   flat must never silently sign someone into an unrelated flat's real
+///   data just because a fallback flat number happened to exist.
+/// Call this once, right after real phone verification succeeds. Returns
+/// whether sign-in actually completed — the caller must check this before
+/// navigating with [resolvePostAuthRoute]; on `false`, it should sign the
+/// user back out of Firebase Auth and show an error instead.
+Future<bool> completeSignIn(
   BuildContext context, {
   String? flatNumberOverride,
   String? phone,
@@ -66,9 +71,17 @@ Future<void> completeSignIn(
   await _recordLoginTimestamp();
 
   if (appProvider.userRole.isAdmin) {
-    if (phone != null && phone.isNotEmpty) {
-      await society.claimAdminIfUnbound(phone);
-    }
+    // The Admin tab merely being selected proves nothing on its own — the
+    // login/OTP screens' own "adminAlreadyExists" pre-checks are only
+    // best-effort (see SocietyProvider.canSignInAsAdmin's doc comment).
+    // claimAdminIfUnbound is the real, authoritative gate: without checking
+    // its result here, ANY phone number that completes verification on the
+    // Admin tab would be granted full admin access, regardless of whether
+    // it actually holds the seat.
+    if (phone == null || phone.isEmpty) return false;
+    final isRealAdmin = await society.claimAdminIfUnbound(phone);
+    if (!isRealAdmin) return false;
+
     appProvider.setUserInfo(
       userId: uid,
       communityId: society.building.name,
@@ -79,9 +92,9 @@ Future<void> completeSignIn(
       userPhone: phone,
       userPhotoUrl: photoUrl,
     );
-    if (!context.mounted) return;
+    if (!context.mounted) return true;
     await PushNotificationService().registerToken(context);
-    return;
+    return true;
   }
 
   if (appProvider.userRole == UserRole.committee) {
@@ -92,16 +105,19 @@ Future<void> completeSignIn(
       userName: 'Committee Member',
       userPhotoUrl: photoUrl,
     );
-    if (!context.mounted) return;
+    if (!context.mounted) return true;
     await PushNotificationService().registerToken(context);
-    return;
+    return true;
   }
 
   final lookedUpFlat = flatNumberOverride == null && phone != null
       ? await society.findFlatByPhone(phone)
       : null;
-  final flatNumber =
-      flatNumberOverride ?? lookedUpFlat?.flatNumber ?? MockSeed.demoResidentFlat;
+  var flatNumber = flatNumberOverride ?? lookedUpFlat?.flatNumber;
+  if (flatNumber == null) {
+    if (!society.isMock) return false;
+    flatNumber = MockSeed.demoResidentFlat;
+  }
   final flat = lookedUpFlat ?? society.flatByNumber(flatNumber);
   appProvider.setUserInfo(
     userId: uid,
@@ -112,8 +128,9 @@ Future<void> completeSignIn(
     userPhone: flat?.phone,
     userPhotoUrl: photoUrl,
   );
-  if (!context.mounted) return;
+  if (!context.mounted) return true;
   await PushNotificationService().registerToken(context);
+  return true;
 }
 
 Future<void> _recordLoginTimestamp() async {

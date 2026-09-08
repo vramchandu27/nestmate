@@ -10,24 +10,15 @@ import '../../widgets/app_card.dart';
 import '../../widgets/empty_state.dart';
 import '../../widgets/icon_badge.dart';
 
-/// The association's notice feed — purely informational, fully decoupled
-/// from billing. Shown only once the building has joined an association.
+/// This building's own notice feed — purely informational, fully decoupled
+/// from billing. Scoped to this block only, not any cross-building
+/// association.
 class CommunityScreen extends StatelessWidget {
   const CommunityScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     final society = context.watch<SocietyProvider>();
-
-    if (!society.association.joined) {
-      return SafeArea(
-        child: EmptyState(
-          icon: Icons.groups_rounded,
-          title: AppLocalizations.t('notJoinedCommunity'),
-          subtitle: AppLocalizations.t('communityLocked'),
-        ),
-      );
-    }
 
     return SafeArea(
       child: ListView(
@@ -50,7 +41,7 @@ class CommunityScreen extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  society.association.name,
+                  society.building.name,
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -59,7 +50,7 @@ class CommunityScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  '${AppLocalizations.t('communitySub')} · ${society.association.buildingCount} buildings',
+                  AppLocalizations.t('postNoticeSub'),
                   style: TextStyle(
                     color: Colors.white.withValues(alpha: 0.9),
                     fontSize: 12.5,
@@ -69,14 +60,24 @@ class CommunityScreen extends StatelessWidget {
               ],
             ),
           ),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Column(
-              children: [
-                for (final post in society.posts) _PostCard(post: post),
-              ],
+          if (society.posts.isEmpty)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: EmptyState(
+                icon: Icons.campaign_outlined,
+                title: AppLocalizations.t('noNoticesYetTitle'),
+                subtitle: AppLocalizations.t('noNoticesYetSub'),
+              ),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Column(
+                children: [
+                  for (final post in society.posts) _PostCard(post: post),
+                ],
+              ),
             ),
-          ),
           const SizedBox(height: 16),
         ],
       ),

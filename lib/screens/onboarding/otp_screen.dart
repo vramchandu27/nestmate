@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -57,6 +59,12 @@ class _OtpScreenState extends State<OtpScreen> {
   bool _isLoading = false;
   int _resendCountdown = 30;
   String? _otpError;
+
+  /// Set once a verified phone number turned out to have no matching
+  /// account — read by the back button so it can tell [LoginScreen] to
+  /// clear the phone field it's returning to, rather than leaving a number
+  /// there that's already known not to work.
+  bool _phoneNotRegistered = false;
 
   late OtpScreenArgs _args;
   late String _verificationId;
@@ -148,6 +156,7 @@ class _OtpScreenState extends State<OtpScreen> {
     });
 
     String? errorMessage;
+    var notRegistered = false;
     await withLoadingOverlay(context, () async {
       try {
         await _phoneAuth.confirmCode(
@@ -159,6 +168,9 @@ class _OtpScreenState extends State<OtpScreen> {
             ? AppLocalizations.t('invalidOtp')
             : (e.message ?? AppLocalizations.t('invalidOtp'));
         return;
+      } on TimeoutException {
+        errorMessage = AppLocalizations.t('errorOccurred');
+        return;
       }
       if (!mounted) return;
       // Keep the loading overlay up through sign-in completion and the
@@ -169,8 +181,17 @@ class _OtpScreenState extends State<OtpScreen> {
         await _args.onVerified!(context);
         return;
       }
-      await completeSignIn(context, phone: phone);
+      final signedIn = await completeSignIn(context, phone: phone);
       if (!mounted) return;
+      if (!signedIn) {
+        // A verified phone number with no matching flat/admin — never
+        // fall through to some other flat's data. Undo the Firebase sign-in
+        // so no dangling session is left behind, and surface a real error.
+        await FirebaseAuth.instance.signOut();
+        errorMessage = AppLocalizations.t('phoneNotRegistered');
+        notRegistered = true;
+        return;
+      }
       Navigator.pushReplacementNamed(context, resolvePostAuthRoute(context));
       await awaitRouteTransition();
     });
@@ -178,18 +199,12 @@ class _OtpScreenState extends State<OtpScreen> {
     setState(() => _isLoading = false);
 
     if (errorMessage != null) {
-      setState(() => _otpError = errorMessage);
+      setState(() {
+        _otpError = errorMessage;
+        if (notRegistered) _phoneNotRegistered = true;
+      });
       _clearOtpFields();
-      return;
     }
-
-    if (_args.onVerified != null) {
-      await _args.onVerified!(context);
-      return;
-    }
-    await completeSignIn(context, phone: phone);
-    if (!mounted) return;
-    Navigator.pushReplacementNamed(context, resolvePostAuthRoute(context));
   }
 
   Future<void> _resendOtp() async {
@@ -218,8 +233,16 @@ class _OtpScreenState extends State<OtpScreen> {
           await _args.onVerified!(context);
           return;
         }
-        await completeSignIn(context, phone: _args.phone);
+        final signedIn = await completeSignIn(context, phone: _args.phone);
         if (!mounted) return;
+        if (!signedIn) {
+          await FirebaseAuth.instance.signOut();
+          setState(() {
+            _otpError = AppLocalizations.t('phoneNotRegistered');
+            _phoneNotRegistered = true;
+          });
+          return;
+        }
         Navigator.pushReplacementNamed(context, resolvePostAuthRoute(context));
     }
   }
@@ -274,7 +297,8 @@ class _OtpScreenState extends State<OtpScreen> {
                     children: [
                       _HeaderButton(
                         icon: Icons.chevron_left_rounded,
-                        onPressed: () => Navigator.pop(context),
+                        onPressed: () =>
+                            Navigator.pop(context, _phoneNotRegistered),
                       ),
                       const Spacer(),
                     ],

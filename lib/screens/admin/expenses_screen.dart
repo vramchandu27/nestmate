@@ -121,6 +121,13 @@ class ExpensesScreen extends StatelessWidget {
                         for (final e in month.expenses)
                               AppCard(
                                 margin: const EdgeInsets.only(bottom: 9),
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) =>
+                                        AddExpenseScreen(existing: e),
+                                  ),
+                                ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
@@ -145,6 +152,12 @@ class ExpensesScreen extends StatelessWidget {
                                             fontSize: 15,
                                             color: AppTheme.textDark,
                                           ),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Icon(
+                                          Icons.chevron_right_rounded,
+                                          color: AppTheme.textLight,
+                                          size: 18,
                                         ),
                                       ],
                                     ),

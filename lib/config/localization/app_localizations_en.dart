@@ -123,7 +123,7 @@ class AppLocalizationsEn {
     'paymentConfirmed': 'Payment Confirmed',
     'paymentConfirmedByAdminLabel': 'Payment confirmed by admin',
     'reportIssue': 'Report Issue',
-    'communityNotices': 'Community Notices',
+    'communityNotices': 'Notices',
     'postNoticeSub': 'Post to everyone in the building',
     'joinCommunity': 'Join Community',
     'logout': 'Logout',
@@ -179,25 +179,26 @@ class AppLocalizationsEn {
         "That phone number doesn't match our records for this flat. Contact your admin.",
     'adminAlreadyExists':
         'This building already has an admin. Ask them to add you as a flat, or request a handoff.',
+    'phoneNotRegistered':
+        'No account found for this number. Please sign up first.',
     'invalidOtp': 'Invalid OTP. Please try again.',
     'otpSendFailed': "Couldn't send the OTP. Please try again.",
     'otpSent': 'OTP sent to your phone number.',
 
     // Resident shell / nav
     'navBuilding': 'Building',
-    'navCommunity': 'Community',
+    'navCommunity': 'Notices',
     'navProfile': 'Profile',
 
     // Community feed
-    'communitySub': 'Association updates',
     'committee': 'Association Committee',
     'pinned': 'Pinned',
     'writeComment': 'Write a comment…',
     'comment': 'Comment',
     'comments': 'comments',
     'react': 'React',
-    'notJoinedCommunity': 'Not in an association',
-    'communityLocked': 'Join an association to see community updates',
+    'noNoticesYetTitle': 'No notices yet',
+    'noNoticesYetSub': 'Updates from your admin will show up here',
 
     // Profile
     'yourFlat': 'Your flat',
@@ -309,6 +310,11 @@ class AppLocalizationsEn {
     'whichFlatFronted': 'Which flat fronted it?',
     'addReceiptOptional': 'Add receipt photo (optional)',
     'saveExpenseBtn': 'Save expense',
+    'editExpense': 'Edit Expense',
+    'updateExpenseBtn': 'Update expense',
+    'deleteExpenseTitle': 'Delete expense?',
+    'deleteExpenseConfirm':
+        'This will remove it from this month\'s expenses and bills. This can\'t be undone.',
 
     // Admin: add advance
     'advanceReasonLabel': 'Reason',

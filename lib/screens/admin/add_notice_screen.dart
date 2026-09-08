@@ -8,9 +8,9 @@ import '../../widgets/ambient_background.dart';
 import '../../widgets/loading_overlay.dart';
 import '../../widgets/screen_header.dart';
 
-/// Post a notice to the joined association's community feed.
-/// (Previously `SocietyProvider.addPost()` existed with no screen calling
-/// it — this was dead/unreachable functionality.)
+/// Post a notice to this building's own notice feed — residents see it in
+/// their Notices tab. Scoped to this block only, no cross-building
+/// association required.
 class AddNoticeScreen extends StatefulWidget {
   const AddNoticeScreen({super.key});
 
@@ -51,8 +51,6 @@ class _AddNoticeScreenState extends State<AddNoticeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final joined = context.watch<SocietyProvider>().association.joined;
-
     return Scaffold(
       backgroundColor: AppTheme.background,
       body: AmbientBackground(
@@ -61,66 +59,58 @@ class _AddNoticeScreenState extends State<AddNoticeScreen> {
             children: [
               ScreenHeader(title: AppLocalizations.t('communityNotices')),
               Expanded(
-                child: !joined
-                    ? Padding(
-                        padding: const EdgeInsets.all(24),
-                        child: Text(
-                          AppLocalizations.t('communityLocked'),
-                          style: const TextStyle(color: AppTheme.textMedium),
+                child: Form(
+                  key: _formKey,
+                  autovalidateMode: _submitted
+                      ? AutovalidateMode.onUserInteraction
+                      : AutovalidateMode.disabled,
+                  child: ListView(
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      Text(
+                        AppLocalizations.t(
+                          'expenseNameLabel',
+                          defaultValue: 'Title',
                         ),
-                      )
-                    : Form(
-                        key: _formKey,
-                        autovalidateMode: _submitted
-                            ? AutovalidateMode.onUserInteraction
-                            : AutovalidateMode.disabled,
-                        child: ListView(
-                          padding: const EdgeInsets.all(20),
-                          children: [
-                            Text(
-                              AppLocalizations.t(
-                                'expenseNameLabel',
-                                defaultValue: 'Title',
-                              ),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: AppTheme.textMedium,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextFormField(
-                              controller: _titleCtrl,
-                              enabled: !_isLoading,
-                              textCapitalization: TextCapitalization.words,
-                              validator: (v) => (v == null || v.trim().isEmpty)
-                                  ? AppLocalizations.t('fieldRequired')
-                                  : null,
-                            ),
-                            const SizedBox(height: 16),
-                            Text(
-                              AppLocalizations.t('writeComment'),
-                              style: const TextStyle(
-                                fontWeight: FontWeight.w700,
-                                fontSize: 13,
-                                color: AppTheme.textMedium,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            TextField(
-                              controller: _bodyCtrl,
-                              enabled: !_isLoading,
-                              textCapitalization: TextCapitalization.sentences,
-                              maxLines: 5,
-                            ),
-                            const SizedBox(height: 20),
-                            ElevatedButton(
-                              onPressed: _isLoading ? null : _submit,
-                              child: Text(AppLocalizations.t('submit')),
-                            ),
-                          ],
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppTheme.textMedium,
                         ),
                       ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _titleCtrl,
+                        enabled: !_isLoading,
+                        textCapitalization: TextCapitalization.words,
+                        validator: (v) => (v == null || v.trim().isEmpty)
+                            ? AppLocalizations.t('fieldRequired')
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        AppLocalizations.t('writeComment'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppTheme.textMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _bodyCtrl,
+                        enabled: !_isLoading,
+                        textCapitalization: TextCapitalization.sentences,
+                        maxLines: 5,
+                      ),
+                      const SizedBox(height: 20),
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _submit,
+                        child: Text(AppLocalizations.t('submit')),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),

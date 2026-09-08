@@ -60,13 +60,13 @@ export const onNoticePosted = onDocumentCreated(
     const flatsSnap = await db.collection("buildings/main/flats").get();
     const title = typeof post.title === "string" && post.title.length > 0
       ? post.title
-      : "A new notice was posted";
+      : "New notice";
     await Promise.all(
       flatsSnap.docs.map((doc) =>
         sendPush(
           doc.data().fcmToken as string | undefined,
-          "New notice",
           title,
+          "Admin posted a new notice. Tap to view.",
           "new_notice"
         )
       )

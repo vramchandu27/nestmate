@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -110,16 +112,22 @@ class _LoginScreenState extends State<LoginScreen> {
       // has to happen FIRST, then checkFlatClaim as a second guard on top
       // of an already-authenticated session.
       String? flatClaimErrorKey;
+      var notAdmin = false;
       try {
         await withLoadingOverlay(context, () async {
           // Real password check — signs into the Firebase credential
           // linked at signup (see SignupScreen/AdminSignupScreen), so a
           // wrong password is actually rejected instead of any password
           // working as long as the phone/flat matched.
-          await FirebaseAuth.instance.signInWithEmailAndPassword(
-            email: passwordAuthEmailFor(phone),
-            password: _passwordController.text,
-          );
+          // Timeout guards against exactly the bug this app hit already —
+          // an unbounded await on a flaky/slow connection leaving the
+          // loading overlay up forever with nothing tappable underneath.
+          await FirebaseAuth.instance
+              .signInWithEmailAndPassword(
+                email: passwordAuthEmailFor(phone),
+                password: _passwordController.text,
+              )
+              .timeout(const Duration(seconds: 15));
           if (!mounted) return;
 
           // Resident password login has no OTP step, so this is the only
@@ -143,12 +151,22 @@ class _LoginScreenState extends State<LoginScreen> {
           // navigation it triggers too — tearing it down right after the
           // password check succeeds would flash this login screen for a
           // frame before the next screen actually appears.
-          await completeSignIn(
+          final signedIn = await completeSignIn(
             context,
             phone: phone,
             flatNumberOverride: _isAdminMode ? null : flatNumber,
           );
           if (!mounted) return;
+          if (!signedIn) {
+            // Correct password, correct account — but for the Admin tab
+            // specifically, that account isn't actually the bound admin
+            // (e.g. a resident's own valid credentials used on the wrong
+            // tab). Don't leave a signed-in session behind for a login
+            // attempt that didn't actually grant the access it claimed to.
+            await FirebaseAuth.instance.signOut();
+            notAdmin = true;
+            return;
+          }
           Navigator.pushReplacementNamed(
             context,
             resolvePostAuthRoute(context),
@@ -160,6 +178,14 @@ class _LoginScreenState extends State<LoginScreen> {
         setState(() {
           _isLoading = false;
           _passwordError = AppLocalizations.t('incorrectPassword');
+        });
+        _formKey.currentState!.validate();
+        return;
+      } on TimeoutException {
+        if (!mounted) return;
+        setState(() {
+          _isLoading = false;
+          _phoneError = AppLocalizations.t('errorOccurred');
         });
         _formKey.currentState!.validate();
         return;
@@ -175,6 +201,9 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         });
         _formKey.currentState!.validate();
+      } else if (notAdmin) {
+        setState(() => _phoneError = AppLocalizations.t('adminAlreadyExists'));
+        _formKey.currentState!.validate();
       }
       return;
     }
@@ -188,39 +217,82 @@ class _LoginScreenState extends State<LoginScreen> {
   Future<void> _sendOtpAndNavigate(String phone) async {
     setState(() => _isLoading = true);
     PhoneCodeResult? result;
-    await withLoadingOverlay(context, () async {
-      result = await PhoneAuthService().sendCode(phone: toE164Phone(phone));
+    try {
+      await withLoadingOverlay(context, () async {
+        result = await PhoneAuthService().sendCode(phone: toE164Phone(phone));
+        if (!mounted) return;
+        // Keep the overlay up through whatever happens next — sign-in
+        // completion + navigation, or pushing the OTP screen — tearing it
+        // down right after sendCode() succeeds would flash this login
+        // screen for a frame before the next screen actually appears. The
+        // 'failed' case is handled below instead, after the overlay comes
+        // down, since nothing navigates away on failure.
+        switch (result!.status) {
+          case PhoneCodeStatus.failed:
+            return;
+          case PhoneCodeStatus.autoVerified:
+            final signedIn = await completeSignIn(context, phone: phone);
+            if (!mounted) return;
+            if (!signedIn) {
+              // A verified phone number with no matching flat/admin — never
+              // fall through to some other flat's data. Undo the sign-in and
+              // surface a real error instead of silently landing somewhere.
+              await FirebaseAuth.instance.signOut();
+              setState(
+                () => _phoneError = AppLocalizations.t('phoneNotRegistered'),
+              );
+              _formKey.currentState!.validate();
+              return;
+            }
+            Navigator.pushReplacementNamed(
+              context,
+              resolvePostAuthRoute(context),
+            );
+            await awaitRouteTransition();
+          case PhoneCodeStatus.codeSent:
+            // Not awaited here — that would keep the loading overlay up for
+            // the OTP screen's entire lifetime instead of just the
+            // transition. The result (whether the OTP screen's back arrow
+            // was tapped after a "no account found" error) is only needed
+            // later, once the user is actually back on this screen.
+            // Not typed <bool> here — '/otp' is registered through
+            // MaterialApp's plain `routes:` map, which always resolves to
+            // an untyped MaterialPageRoute<dynamic>, not a Route<bool>.
+            // Requesting <bool> makes Flutter type-check the resolved
+            // route against that generic, which always fails with a
+            // runtime TypeError ("MaterialPageRoute<dynamic> is not a
+            // subtype of Route<bool?>") — every OTP-mode login hit this,
+            // every single time. The `== true` comparison below works
+            // fine on the untyped result without needing a cast.
+            Navigator.pushNamed(
+              context,
+              '/otp',
+              arguments: OtpScreenArgs(
+                phone: phone,
+                verificationId: result!.verificationId!,
+                resendToken: result!.resendToken,
+              ),
+            ).then((shouldClearPhone) {
+              if (shouldClearPhone == true && mounted) {
+                _phoneController.clear();
+              }
+            });
+            await awaitRouteTransition();
+        }
+      });
+    } catch (e) {
+      // Whatever unexpectedly went wrong here — a bad argument, a
+      // navigation failure, anything not already handled above — must
+      // never leave the button stuck disabled forever with no way
+      // forward. Always land back in a usable state with a real error.
+      debugPrint('LoginScreen._sendOtpAndNavigate: $e');
       if (!mounted) return;
-      // Keep the overlay up through whatever happens next — sign-in
-      // completion + navigation, or pushing the OTP screen — tearing it
-      // down right after sendCode() succeeds would flash this login
-      // screen for a frame before the next screen actually appears. The
-      // 'failed' case is handled below instead, after the overlay comes
-      // down, since nothing navigates away on failure.
-      switch (result!.status) {
-        case PhoneCodeStatus.failed:
-          return;
-        case PhoneCodeStatus.autoVerified:
-          await completeSignIn(context, phone: phone);
-          if (!mounted) return;
-          Navigator.pushReplacementNamed(
-            context,
-            resolvePostAuthRoute(context),
-          );
-          await awaitRouteTransition();
-        case PhoneCodeStatus.codeSent:
-          Navigator.pushNamed(
-            context,
-            '/otp',
-            arguments: OtpScreenArgs(
-              phone: phone,
-              verificationId: result!.verificationId!,
-              resendToken: result!.resendToken,
-            ),
-          );
-          await awaitRouteTransition();
-      }
-    });
+      setState(() => _isLoading = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.t('errorOccurred'))),
+      );
+      return;
+    }
     if (!mounted) return;
     setState(() => _isLoading = false);
     if (result?.status == PhoneCodeStatus.failed) {

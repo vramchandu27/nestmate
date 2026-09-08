@@ -62,6 +62,13 @@ class SocietyProvider extends ChangeNotifier {
       _pastMonths = MockSeed.pastMonths();
 
   final bool _mock;
+
+  /// True only for [SocietyProvider.mock()] (widget tests / no Firebase
+  /// backend) — gates the demo-flat fallback in [completeSignIn]'s login
+  /// path so a real, never-registered phone number never silently signs
+  /// someone into an unrelated existing flat's real data.
+  bool get isMock => _mock;
+
   static const String _buildingDocId = 'main';
 
   FirebaseFirestore? _firestoreInstance;
@@ -172,7 +179,8 @@ class SocietyProvider extends ChangeNotifier {
     );
     _subs.add(
       _postsRef.snapshots().listen((snap) {
-        _posts = snap.docs.map((d) => CommunityPost.fromMap(d.data())).toList();
+        _posts = snap.docs.map((d) => CommunityPost.fromMap(d.data())).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         notifyListeners();
       }, onError: (Object e) => debugPrint('SocietyProvider posts listener: $e')),
     );
@@ -277,17 +285,27 @@ class SocietyProvider extends ChangeNotifier {
   /// whenever [Building.currentMonthId] changes, including their `bills`
   /// subcollection so [pastBillsForFlat] can stay a plain synchronous getter.
   Future<void> _refreshPastMonths() async {
-    final snap = await _monthsRef.orderBy('id', descending: true).get();
-    final result = <MonthData>[];
-    for (final doc in snap.docs) {
-      if (doc.id == _currentMonth.id) continue;
-      final month = MonthData.fromMap(doc.data());
-      final billsSnap = await doc.reference.collection('bills').get();
-      month.bills = billsSnap.docs.map((b) => Bill.fromMap(b.data())).toList();
-      result.add(month);
+    try {
+      final snap = await _monthsRef
+          .orderBy('id', descending: true)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final result = <MonthData>[];
+      for (final doc in snap.docs) {
+        if (doc.id == _currentMonth.id) continue;
+        final month = MonthData.fromMap(doc.data());
+        final billsSnap = await doc.reference
+            .collection('bills')
+            .get()
+            .timeout(const Duration(seconds: 8));
+        month.bills = billsSnap.docs.map((b) => Bill.fromMap(b.data())).toList();
+        result.add(month);
+      }
+      _pastMonths = result;
+      notifyListeners();
+    } catch (e) {
+      debugPrint('SocietyProvider _refreshPastMonths: $e');
     }
-    _pastMonths = result;
-    notifyListeners();
   }
 
   @override
@@ -341,12 +359,19 @@ class SocietyProvider extends ChangeNotifier {
       }
       return null;
     }
-    final snap = await _flatsRef
-        .where('phone', isEqualTo: toE164Phone(phone))
-        .limit(1)
-        .get();
-    if (snap.docs.isEmpty) return null;
-    return Flat.fromMap(snap.docs.first.data());
+    try {
+      final snap = await _flatsRef
+          .where('phone', isEqualTo: toE164Phone(phone))
+          .limit(1)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      if (snap.docs.isEmpty) return null;
+      return Flat.fromMap(snap.docs.first.data());
+    } catch (_) {
+      // A read that timed out found nothing, same as a genuine miss — the
+      // caller must never hang indefinitely waiting on a login attempt.
+      return null;
+    }
   }
 
   /// Derived view matching the spec's `building.exemptFlats[]` shape — the
@@ -577,18 +602,32 @@ class SocietyProvider extends ChangeNotifier {
       return null;
     }
 
-    final doc = await _flatsRef.doc(flatNumber.trim()).get();
+    final DocumentSnapshot<Map<String, dynamic>> doc;
+    try {
+      doc = await _flatsRef
+          .doc(flatNumber.trim())
+          .get()
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // Never leave the calling screen's loading overlay hanging forever
+      // on a read that timed out or failed — surface it as a real error.
+      return 'errorOccurred';
+    }
     if (!doc.exists) return 'flatNotFound';
     final flat = Flat.fromMap(doc.data()!);
     if (_normalizedPhone(toE164Phone(flat.phone)) !=
         _normalizedPhone(toE164Phone(phone))) {
       return 'flatPhoneMismatch';
     }
-    await doc.reference.update({
-      'residentName': name.trim(),
-      'phone': toE164Phone(phone.trim()),
-      'passwordSet': true,
-    });
+    try {
+      await doc.reference.update({
+        'residentName': name.trim(),
+        'phone': toE164Phone(phone.trim()),
+        'passwordSet': true,
+      }).timeout(const Duration(seconds: 8));
+    } catch (_) {
+      return 'errorOccurred';
+    }
     return null;
   }
 
@@ -609,7 +648,19 @@ class SocietyProvider extends ChangeNotifier {
       }
       return null;
     }
-    final doc = await _flatsRef.doc(flatNumber.trim()).get();
+    final DocumentSnapshot<Map<String, dynamic>> doc;
+    try {
+      doc = await _flatsRef
+          .doc(flatNumber.trim())
+          .get()
+          .timeout(const Duration(seconds: 8));
+    } catch (_) {
+      // This is exactly what was hanging real logins: an unbounded await
+      // on this read left the caller's loading overlay up forever with no
+      // way out. Never again — a slow/failed read must surface as a real,
+      // recoverable error instead of freezing the screen.
+      return 'errorOccurred';
+    }
     if (!doc.exists) return 'flatNotFound';
     final flat = Flat.fromMap(doc.data()!);
     if (_normalizedPhone(toE164Phone(flat.phone)) !=
@@ -624,28 +675,72 @@ class SocietyProvider extends ChangeNotifier {
 
   /// Whether [phone] is allowed to hold the admin seat — true if no admin
   /// is bound yet (first to log in as admin claims it) or if it matches
-  /// the already-bound admin. There is only ever one admin per building;
-  /// the Firestore rules enforce this same phone match server-side.
+  /// the already-bound admin. There is only ever one admin per building.
+  ///
+  /// Best-effort only, NOT the real gate: this reads [_building] in
+  /// memory, which is still its unloaded default for anyone not yet signed
+  /// in — so it always passes for a fresh phone until [claimAdminIfUnbound]
+  /// does a real, authoritative Firestore read post-auth. This exists only
+  /// to fail fast in the UI (skip sending an OTP that's doomed anyway) when
+  /// the data happens to already be loaded (e.g. an admin re-logging in).
   bool canSignInAsAdmin(String phone) {
     if (_building.adminPhone.isEmpty) return true;
     return _normalizedPhone(toE164Phone(_building.adminPhone)) ==
         _normalizedPhone(toE164Phone(phone));
   }
 
-  /// Binds [phone] as the admin if the seat is still unclaimed. No-ops if
-  /// an admin is already bound — reassignment only happens via
-  /// [transferAdmin]. Stored in E.164 form so it matches the phone number
-  /// Firebase Auth puts in the ID token for the security rules.
-  Future<void> claimAdminIfUnbound(String phone) async {
-    if (_building.adminPhone.isNotEmpty || phone.trim().isEmpty) return;
+  /// Binds [phone] as the admin if the seat is still unclaimed, or confirms
+  /// it already belongs to [phone]. Reassignment to a *different* phone
+  /// only happens via [transferAdmin]. Stored in E.164 form so it matches
+  /// the phone number Firebase Auth puts in the ID token for the security
+  /// rules.
+  ///
+  /// Returns whether [phone] legitimately holds the seat after this call —
+  /// callers (admin login/signup) MUST check this before granting local
+  /// admin access. This always does a fresh Firestore read rather than
+  /// trusting the in-memory [_building] doc: that doc is still its unloaded
+  /// default (`adminPhone == ''`) for anyone not yet signed in, since this
+  /// provider's own listeners only attach once already authenticated —
+  /// trusting it here would let any phone number that completes
+  /// verification claim (or appear to claim) the seat.
+  Future<bool> claimAdminIfUnbound(String phone) async {
+    if (phone.trim().isEmpty) return false;
+    final e164Phone = toE164Phone(phone.trim());
+
     if (_mock) {
-      _building.adminPhone = phone.trim();
-      notifyListeners();
-      return;
+      if (_building.adminPhone.isEmpty) {
+        _building.adminPhone = e164Phone;
+        notifyListeners();
+        return true;
+      }
+      return _normalizedPhone(_building.adminPhone) == _normalizedPhone(e164Phone);
     }
-    await _buildingRef.set({
-      'adminPhone': toE164Phone(phone.trim()),
-    }, SetOptions(merge: true));
+
+    Map<String, dynamic>? data;
+    try {
+      data = (await _buildingRef
+              .get()
+              .timeout(const Duration(seconds: 8)))
+          .data();
+    } catch (_) {
+      // Can't verify who holds the seat right now (timeout/offline/etc) —
+      // never grant admin access on a read that didn't actually complete.
+      // Fail closed, not open — and never leave the caller's loading
+      // overlay hanging forever waiting on an await with no timeout.
+      return false;
+    }
+    final existing = data?['adminPhone'] as String? ?? '';
+    if (existing.isEmpty) {
+      try {
+        await _buildingRef
+            .set({'adminPhone': e164Phone}, SetOptions(merge: true))
+            .timeout(const Duration(seconds: 8));
+      } catch (_) {
+        return false;
+      }
+      return true;
+    }
+    return _normalizedPhone(existing) == _normalizedPhone(e164Phone);
   }
 
   /// Hands the sole admin seat to a different phone number — including one
@@ -734,6 +829,25 @@ class SocietyProvider extends ChangeNotifier {
       return;
     }
     await _expensesRef.doc(expense.id).set(expense.toMap());
+  }
+
+  Future<void> updateExpense(Expense expense) async {
+    if (_mock) {
+      final idx = _currentMonth.expenses.indexWhere((e) => e.id == expense.id);
+      if (idx != -1) _currentMonth.expenses[idx] = expense;
+      notifyListeners();
+      return;
+    }
+    await _expensesRef.doc(expense.id).set(expense.toMap());
+  }
+
+  Future<void> deleteExpense(String expenseId) async {
+    if (_mock) {
+      _currentMonth.expenses.removeWhere((e) => e.id == expenseId);
+      notifyListeners();
+      return;
+    }
+    await _expensesRef.doc(expenseId).delete();
   }
 
   /// Recording an advance applies each recovery straight to the named
@@ -989,7 +1103,6 @@ class SocietyProvider extends ChangeNotifier {
     final post = CommunityPost(
       id: 'post${DateTime.now().microsecondsSinceEpoch}',
       authorName: _building.adminName.isEmpty ? 'Admin' : _building.adminName,
-      timeLabel: 'Just now',
       title: title,
       body: body,
     );

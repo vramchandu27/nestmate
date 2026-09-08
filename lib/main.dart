@@ -1,3 +1,4 @@
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -6,6 +7,7 @@ import 'config/app_theme.dart';
 import 'config/localization/app_localizations.dart';
 import 'config/routing.dart';
 import 'firebase_options.dart';
+import 'models/role.dart';
 import 'providers/app_provider.dart';
 import 'providers/personal_expense_provider.dart';
 import 'providers/society_provider.dart';
@@ -93,8 +95,64 @@ class _AuthGateState extends State<_AuthGate> {
   }
 }
 
-class NestMateApp extends StatelessWidget {
+/// How long the app can sit backgrounded before reopening it resets back to
+/// the dashboard instead of resuming whatever screen was left open —
+/// Android/iOS keep the app process (and its whole widget/navigator state)
+/// alive across a mere backgrounding, so without this, reopening after a
+/// long gap just shows the exact same screen from before, stale data and
+/// all, with no re-check of anything.
+const _backgroundResetThreshold = Duration(minutes: 15);
+
+class NestMateApp extends StatefulWidget {
   const NestMateApp({super.key});
+
+  @override
+  State<NestMateApp> createState() => _NestMateAppState();
+}
+
+class _NestMateAppState extends State<NestMateApp> with WidgetsBindingObserver {
+  DateTime? _pausedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _pausedAt = DateTime.now();
+      return;
+    }
+    if (state != AppLifecycleState.resumed) return;
+    final pausedAt = _pausedAt;
+    _pausedAt = null;
+    if (pausedAt == null) return;
+    if (DateTime.now().difference(pausedAt) < _backgroundResetThreshold) return;
+    _resetToDashboardIfSignedIn();
+  }
+
+  /// Only resets when there's an actual signed-in session with a role
+  /// already resolved — someone sitting on Welcome/Login/a signup form
+  /// (never authenticated yet) must never get force-navigated away from
+  /// whatever they were doing there.
+  void _resetToDashboardIfSignedIn() {
+    if (FirebaseAuth.instance.currentUser == null) return;
+    final ctx = navigatorKey.currentContext;
+    if (ctx == null) return;
+    if (ctx.read<AppProvider>().userRole == UserRole.none) return;
+    navigatorKey.currentState?.pushNamedAndRemoveUntil(
+      resolvePostAuthRoute(ctx),
+      (route) => false,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
