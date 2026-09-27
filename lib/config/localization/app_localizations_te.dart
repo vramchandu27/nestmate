@@ -12,11 +12,16 @@ class AppLocalizationsTe {
     'back': 'వెనుకకు',
     'fieldRequired': 'ఈ ఫీల్డ్ తప్పనిసరి',
     'enterValidAmount': 'సరైన మొత్తాన్ని నమోదు చేయండి',
-    'welcome': 'NestMate',
+    'welcome': 'Resko',
     'tagline': 'కమ్యూనిటీ జీవితాన్ని సులభతరం చేస్తున్నాం.',
     'welcomeSubtitle':
         'మెయింటెనెన్స్ ఇప్పుడు సులభం. మీ ఫోన్‌కు వచ్చే వన్-టైమ్ కోడ్‌తో లాగిన్ అవ్వండి, లేదా మీరు సెట్ చేసుకున్న పాస్‌వర్డ్‌తో.',
     'getStarted': 'ప్రారంభించండి',
+    'personalTrackerCta': 'బిల్డింగ్‌లో భాగం కాదా?',
+    'personalTrackerCtaSub': 'సెటప్ వదిలేయండి — మీ వ్యక్తిగత ఖర్చులను మాత్రమే ట్రాక్ చేయండి.',
+    'personalLoginHeading': 'మీ సొంత ఖర్చులను ట్రాక్ చేయండి',
+    'personalLoginSub': 'బిల్డింగ్ లేదా ఫ్లాట్ అవసరం లేదు — ప్రారంభించడానికి మీ ఫోన్ నంబర్‌ని ధృవీకరించండి.',
+    'continueBtn': 'కొనసాగించండి',
     'clearMonthlyBills': 'స్పష్టమైన నెలవారీ బిల్లులు',
     'seeExactlyWhatYouOwe': 'మీరు ఎంత చెల్లించాలో మరియు ఎందుకు చేయాలో చూడండి',
     'payInSeconds': 'సెకన్లలో చెల్లించండి',
@@ -45,6 +50,8 @@ class AppLocalizationsTe {
     'confirmPassword': 'పాస్‌వర్డ్‌ను నిర్ధారించండి',
     'flatNumber': 'ఫ్లాట్ నంబర్',
     'enterFlatNumber': 'దయచేసి మీ ఫ్లాట్ నంబర్‌ను నమోదు చేయండి',
+    'enterJoinCode': 'దయచేసి మీ సొసైటీ జాయిన్ కోడ్‌ను నమోదు చేయండి',
+    'invalidJoinCode': 'ఈ జాయిన్ కోడ్ ఏ సొసైటీకీ సరిపోలడం లేదు',
     'name': 'పేరు',
     'enterYourName': 'మీ పూర్తి పేరు నమోదు చేయండి',
     'enterOtp': '6-అంకెల OTP ను నమోదు చేయండి',
@@ -62,7 +69,7 @@ class AppLocalizationsTe {
     'agreeToTerms': 'దయచేసి నిబంధనలకు సమ్మతిని పూరించండి',
     'passwordMinimumLength': 'పాస్‌వర్డ్ కనీసం 6 అక్షరాలు ఉండాలి',
     'passwordMismatch': 'పాస్‌వర్డ్‌లు సరిపోలడం లేదు',
-    'joinNestMate': 'NestMate కు చేరండి',
+    'joinNestMate': 'Resko కు చేరండి',
     'createAdminAccount': 'అడ్మిన్ ఖాతా సృష్టించండి',
     'adminSignupSub': 'మీ పేరు, ఫోన్ నంబర్ మరియు పాస్‌వర్డ్ సెట్ చేయండి — తర్వాత మీరు మీ భవనాన్ని నమోదు చేస్తారు.',
     'enterName': 'దయచేసి మీ పేరు నమోదు చేయండి',
@@ -101,6 +108,9 @@ class AppLocalizationsTe {
     'bills': 'బిల్లులు',
     'pastBills': 'గత బిల్లులు',
     'amountDue': 'చెల్లింపు చేయవలసిన మొత్తం',
+    'creditBalanceLabel': 'మీకు చెల్లించబడుతుంది',
+    'creditContactAdminMessage':
+        'ఇది మీకు అడ్మిన్ ద్వారా చెల్లించబడుతుంది. దయచేసి అడ్మిన్‌ను సంప్రదించండి.',
     'billBreakdown': 'బిల్ల్ విభజన',
     'seeHowItsCalculated': 'ఇది ఎలా లెక్కించబడిందో చూడండి',
     'waterUsage': 'నీటి వినియోగం',
@@ -110,10 +120,14 @@ class AppLocalizationsTe {
     'usage': 'వినియోగం',
     'yourUsageThisMonth': 'ఈ నెలలో మీ వినియోగం',
     'viewMeterPhoto': 'మీటర్ ఫోటో చూడండి',
+    'noMeterPhotoYet': 'ఈ నెలకు ఇంకా మీటర్ ఫోటో జోడించలేదు.',
     'waterTankerShare': 'నీటి ట్యాంకర్ వాటా',
     'commonMaintenance': 'సామాన్య నిర్వహణ',
     'subtotal': 'ఉప మొత్తం',
     'downloadStatement': 'స్టేట్‌మెంట్ డౌన్‌లోడ్ చేయండి',
+    'statementFailed': 'స్టేట్‌మెంట్ సృష్టించలేకపోయాము. దయచేసి మళ్లీ ప్రయత్నించండి.',
+    'statementSaved': 'స్టేట్‌మెంట్ సేవ్ చేయబడింది.',
+    'shareStatement': 'స్టేట్‌మెంట్ షేర్ చేయండి',
     'commonShare': 'సామాన్య వాటా',
     'credits': 'క్రెడిట్‌లు',
     'openingBalance': 'ప్రారంభ సంతులనం',
@@ -181,6 +195,8 @@ class AppLocalizationsTe {
         'ఈ ఫోన్ నంబర్ ఈ ఫ్లాట్ రికార్డులతో సరిపోలడం లేదు. మీ అడ్మిన్‌ను సంప్రదించండి.',
     'adminAlreadyExists':
         'ఈ భవనానికి ఇప్పటికే ఒక అడ్మిన్ ఉన్నారు. మిమ్మల్ని ఒక ఫ్లాట్‌గా చేర్చమని వారిని అడగండి, లేదా హ్యాండ్‌ఓవర్ కోరండి.',
+    'adminNoSocietyYet':
+        'ఈ నంబర్‌కు ఇంకా ఏ సొసైటీ నమోదు కాలేదు. మీ సొసైటీని ఏర్పాటు చేసుకోవడానికి క్రింద Create Account నొక్కండి.',
     'phoneNotRegistered':
         'ఈ నంబర్ కోసం ఖాతా కనుగొనబడలేదు. దయచేసి ముందుగా సైన్ అప్ చేయండి.',
     'invalidOtp': 'చెల్లని OTP. దయచేసి మళ్లీ ప్రయత్నించండి.',
@@ -190,6 +206,7 @@ class AppLocalizationsTe {
     // Resident shell / nav
     'navBuilding': 'భవనం',
     'navCommunity': 'నోటీసులు',
+    'navMyExpenses': 'నా ఖర్చులు',
     'navProfile': 'ప్రొఫైల్',
 
     // Community feed
@@ -210,12 +227,31 @@ class AppLocalizationsTe {
     'joinedTo': 'భాగం',
     'leaveAssociation': 'అసోసియేషన్ నుండి వైదొలగండి',
 
+    // Building Expenses (resident, read-only)
+    'buildingExpensesTitle': 'భవన ఖర్చులు',
+    'commonPoolTotalLabel': 'మొత్తం కామన్ పూల్',
+    'noExpensesYetTitle': 'ఇంకా ఖర్చులు లేవు',
+    'noExpensesYetSub': 'మీ అడ్మిన్ ఈ నెలకు ఇంకా ఖర్చులు నమోదు చేయలేదు.',
+
     // Personal Expenses
     'myPersonalExpensesCard': 'నా వ్యక్తిగత ఖర్చులు',
     'personalExpenses': 'వ్యక్తిగత ఖర్చులు',
     'addPersonalExpense': 'ఖర్చు జోడించండి',
+    'editPersonalExpense': 'ఖర్చు మార్చండి',
     'totalSpentLabel': 'మొత్తం ఖర్చు',
     'spendingByCategoryLabel': 'వర్గం వారీగా ఖర్చు',
+    'monthlySalaryLabel': 'నెలవారీ జీతం',
+    'addSalaryBtn': 'జోడించు',
+    'editBtn': 'మార్చు',
+    'setSalaryTitle': 'మీ నెలవారీ జీతాన్ని నమోదు చేయండి',
+    'saveBtn': 'సేవ్ చేయండి',
+    'remainingBalanceLabel': 'మిగిలింది',
+    'overspentLabel': 'అధిక ఖర్చు',
+    'monthlyBudgetsLabel': 'నెలవారీ బడ్జెట్‌లు',
+    'monthlyBudgetsSub': 'ప్రతి వర్గానికి ఖర్చు పరిమితిని పెట్టండి — సెట్ చేయడానికి లేదా మార్చడానికి నొక్కండి.',
+    'setBudgetTitle': 'బడ్జెట్ పెట్టండి',
+    'monthlyBudgetHint': 'నెలవారీ పరిమితి',
+    'setBudgetBtn': 'బడ్జెట్ పెట్టండి',
     'noPersonalExpensesTitle': 'ఇంకా వ్యక్తిగత ఖర్చులు లేవు',
     'noPersonalExpensesSub': 'మీ సొంత ఖర్చులను ట్రాక్ చేయండి — భవనం ఆర్థిక వ్యవహారాల నుండి వేరుగా.',
     'expenseDateLabel': 'తేదీ',
@@ -266,6 +302,18 @@ class AppLocalizationsTe {
     'waterMeteredLabel': 'ఈ భవనం నీటిని వాడకం ప్రకారం బిల్లు చేస్తుంది (మీటర్డ్)',
     'committeeEnabledLabel': 'రీడ్-ఓన్లీ కమిటీ సభ్యుడిని అనుమతించండి',
     'joinCodeLabel': 'నివాసి చేరిక కోడ్',
+    'societyReadyTitle': 'మీ సొసైటీ సిద్ధంగా ఉంది',
+    'societyReadySub':
+        'ఈ కోడ్‌ను మీ నివాసులకు పంపండి. సైన్ అప్ చేసేటప్పుడు వారు దీన్నే నమోదు చేస్తారు — చేరడానికి ఇదే ఏకైక మార్గం.',
+    'shareWithResidents': 'నివాసులకు పంపండి',
+    'joinCodeCopied': 'చేరిక కోడ్ కాపీ అయింది',
+    'joinCodeShareMessage':
+        'Resko లో మా సొసైటీలో చేరండి.\n\nచేరిక కోడ్: %s\n\nయాప్ డౌన్‌లోడ్ చేసి, Sign Up నొక్కి, మీ ఫ్లాట్ నంబర్‌తో పాటు ఈ కోడ్ నమోదు చేయండి.',
+    'duplicateSocietyTitle': 'ఈ పేరుతో సొసైటీ ఇప్పటికే ఉంది',
+    'duplicateSocietyBody':
+        'మీ భవనం నుండి ఎవరైనా ఇప్పటికే దీన్ని ఏర్పాటు చేసి ఉంటే, వారి నుండి చేరిక కోడ్ తీసుకుని నివాసిగా సైన్ అప్ చేయండి. రెండో సొసైటీ సృష్టిస్తే మీ నివాసులు రెండు వేర్వేరు భవనాలుగా విడిపోతారు.',
+    'createAnyway': 'అయినా సృష్టించండి',
+    'goBack': 'వెనక్కి వెళ్లండి',
 
     // Admin: add flats & residents
     'addFlatsResidents': 'ఫ్లాట్‌లు & నివాసితులు జోడించండి',
@@ -317,6 +365,29 @@ class AppLocalizationsTe {
     'deleteExpenseTitle': 'ఖర్చును తొలగించాలా?',
     'deleteExpenseConfirm':
         'ఇది ఈ నెల ఖర్చులు మరియు బిల్లుల నుండి తీసివేయబడుతుంది. దీన్ని వెనక్కి తీసుకోలేరు.',
+    'howFundedLabel': 'దీనికి డబ్బు ఎక్కడ నుండి వస్తుంది?',
+    'splitAcrossResidentsOption': 'ఈ నెల నివాసితులలో పంచండి',
+    'payFromReserveOption': 'రిజర్వ్ ఫండ్ నుండి చెల్లించండి',
+    'reserveFundBalance': 'రిజర్వ్ ఫండ్ బ్యాలెన్స్',
+    'insufficientReserveError': 'ఇది రిజర్వ్ ఫండ్ ప్రస్తుత బ్యాలెన్స్ కంటే ఎక్కువ.',
+
+    // Admin: reserve fund
+    'reserveFundLabel': 'రిజర్వ్ ఫండ్',
+    'addToReserveFund': 'రిజర్వ్ ఫండ్‌కు జోడించండి',
+    'currentReserveBalance': 'ప్రస్తుత రిజర్వ్ బ్యాలెన్స్',
+    'reserveFundAmountPerFlatLabel': 'ప్రతి ఫ్లాట్‌కు మొత్తం',
+    'saveReserveFundBtn': 'రిజర్వ్‌కు జోడించండి',
+    'paidFromReserveBadge': 'రిజర్వ్ ఫండ్ నుండి చెల్లించబడింది',
+
+    // Admin: work list
+    'workListTitle': 'పని జాబితా',
+    'addWorkItemTitle': 'పని జోడించండి',
+    'workItemTitleHint': 'ఏమి చేయాలి?',
+    'workItemDescriptionHint': 'వివరణ (ఐచ్ఛికం)',
+    'addWorkItemBtn': 'జోడించు',
+    'noWorkItemsTitle': 'ఇంకా పనులు లేవు',
+    'noWorkItemsSub': 'ఏదైనా చేయాల్సి ఉంటే + నొక్కండి.',
+    'deleteWorkItemTitle': 'ఈ పనిని తొలగించాలా?',
 
     // Admin: add advance
     'advanceReasonLabel': 'కారణం',

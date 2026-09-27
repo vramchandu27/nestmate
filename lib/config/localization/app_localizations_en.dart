@@ -12,11 +12,16 @@ class AppLocalizationsEn {
     'back': 'Back',
     'fieldRequired': 'This field is required',
     'enterValidAmount': 'Enter a valid amount',
-    'welcome': 'NestMate',
+    'welcome': 'Resko',
     'tagline': 'Making community living easy.',
     'welcomeSubtitle':
         "Maintenance made simple. Log in with a one-time code on your phone, or with a password if you've set one.",
     'getStarted': 'Get Started',
+    'personalTrackerCta': 'Not part of a building?',
+    'personalTrackerCtaSub': 'Skip the setup — just track your own personal expenses.',
+    'personalLoginHeading': 'Track your own expenses',
+    'personalLoginSub': "No building or flat needed — just verify your phone number to get started.",
+    'continueBtn': 'Continue',
     'clearMonthlyBills': 'Clear monthly bills',
     'seeExactlyWhatYouOwe': 'See exactly what you owe and why',
     'payInSeconds': 'Pay in seconds',
@@ -43,6 +48,8 @@ class AppLocalizationsEn {
     'confirmPassword': 'Confirm Password',
     'flatNumber': 'Flat Number',
     'enterFlatNumber': 'Please enter your flat number',
+    'enterJoinCode': 'Please enter your society join code',
+    'invalidJoinCode': "That join code doesn't match any society",
     'name': 'Name',
     'enterYourName': 'Enter your full name',
     'enterOtp': 'Enter 6-digit OTP',
@@ -60,7 +67,7 @@ class AppLocalizationsEn {
     'agreeToTerms': 'Please agree to terms and conditions',
     'passwordMinimumLength': 'Password must be at least 6 characters',
     'passwordMismatch': 'Passwords do not match',
-    'joinNestMate': 'Join NestMate',
+    'joinNestMate': 'Join Resko',
     'createAdminAccount': 'Create admin account',
     'adminSignupSub': 'Set up your name, phone, and password — you\'ll register your building next.',
     'enterName': 'Please enter your name',
@@ -99,6 +106,9 @@ class AppLocalizationsEn {
     'bills': 'Bills',
     'pastBills': 'Past Bills',
     'amountDue': 'Amount Due',
+    'creditBalanceLabel': "You'll be paid",
+    'creditContactAdminMessage':
+        "You'll be paid this by admin. Please contact admin.",
     'billBreakdown': 'Bill Breakdown',
     'seeHowItsCalculated': 'See how it\'s calculated',
     'waterUsage': 'Water Usage',
@@ -108,10 +118,14 @@ class AppLocalizationsEn {
     'usage': 'Usage',
     'yourUsageThisMonth': 'Your usage this month',
     'viewMeterPhoto': 'View meter photo',
+    'noMeterPhotoYet': 'No meter photo added for this month yet.',
     'waterTankerShare': 'Water tanker share',
     'commonMaintenance': 'Common maintenance',
     'subtotal': 'Subtotal',
     'downloadStatement': 'Download statement',
+    'statementFailed': "Couldn't create the statement. Please try again.",
+    'statementSaved': 'Statement saved.',
+    'shareStatement': 'Share statement',
     'commonShare': 'Common Share',
     'credits': 'Credits',
     'openingBalance': 'Opening Balance',
@@ -179,6 +193,8 @@ class AppLocalizationsEn {
         "That phone number doesn't match our records for this flat. Contact your admin.",
     'adminAlreadyExists':
         'This building already has an admin. Ask them to add you as a flat, or request a handoff.',
+    'adminNoSocietyYet':
+        'No society is registered to this number yet. Tap Create Account below to set yours up.',
     'phoneNotRegistered':
         'No account found for this number. Please sign up first.',
     'invalidOtp': 'Invalid OTP. Please try again.',
@@ -188,6 +204,7 @@ class AppLocalizationsEn {
     // Resident shell / nav
     'navBuilding': 'Building',
     'navCommunity': 'Notices',
+    'navMyExpenses': 'My Expenses',
     'navProfile': 'Profile',
 
     // Community feed
@@ -208,12 +225,31 @@ class AppLocalizationsEn {
     'joinedTo': 'Part of',
     'leaveAssociation': 'Leave association',
 
+    // Building Expenses (resident, read-only)
+    'buildingExpensesTitle': 'Building Expenses',
+    'commonPoolTotalLabel': 'Common pool total',
+    'noExpensesYetTitle': 'No expenses yet',
+    'noExpensesYetSub': "Your admin hasn't recorded any expenses for this month yet.",
+
     // Personal Expenses
     'myPersonalExpensesCard': 'My Personal Expenses',
     'personalExpenses': 'Personal Expenses',
     'addPersonalExpense': 'Add Expense',
+    'editPersonalExpense': 'Edit Expense',
     'totalSpentLabel': 'Total spent',
     'spendingByCategoryLabel': 'Spending by category',
+    'monthlySalaryLabel': 'Monthly salary',
+    'addSalaryBtn': 'Add',
+    'editBtn': 'Edit',
+    'setSalaryTitle': 'Set your monthly salary',
+    'saveBtn': 'Save',
+    'remainingBalanceLabel': 'Remaining',
+    'overspentLabel': 'Overspent',
+    'monthlyBudgetsLabel': 'Monthly Budgets',
+    'monthlyBudgetsSub': 'Set a spending limit per category — tap any row to set or change it.',
+    'setBudgetTitle': 'Set budget',
+    'monthlyBudgetHint': 'Monthly limit',
+    'setBudgetBtn': 'Set budget',
     'noPersonalExpensesTitle': 'No personal expenses yet',
     'noPersonalExpensesSub': 'Track your own spending — separate from the building\'s finances.',
     'expenseDateLabel': 'Date',
@@ -264,6 +300,18 @@ class AppLocalizationsEn {
     'waterMeteredLabel': 'This building bills water by usage (metered)',
     'committeeEnabledLabel': 'Allow a read-only committee member',
     'joinCodeLabel': 'Resident join code',
+    'societyReadyTitle': 'Your society is ready',
+    'societyReadySub':
+        'Share this code with your residents. They enter it when they sign up, and it is the only way they can join.',
+    'shareWithResidents': 'Share with residents',
+    'joinCodeCopied': 'Join code copied',
+    'joinCodeShareMessage':
+        'Join our society on Resko.\n\nJoin code: %s\n\nDownload the app, tap Sign Up, and enter this code along with your flat number.',
+    'duplicateSocietyTitle': 'A society with this name already exists',
+    'duplicateSocietyBody':
+        'If someone from your building has already set this up, ask them for the join code and sign up as a resident instead. Creating a second society splits your residents across two separate buildings.',
+    'createAnyway': 'Create anyway',
+    'goBack': 'Go back',
 
     // Admin: add flats & residents
     'addFlatsResidents': 'Add flats & residents',
@@ -315,6 +363,30 @@ class AppLocalizationsEn {
     'deleteExpenseTitle': 'Delete expense?',
     'deleteExpenseConfirm':
         'This will remove it from this month\'s expenses and bills. This can\'t be undone.',
+    'howFundedLabel': 'How is this funded?',
+    'splitAcrossResidentsOption': 'Split across residents this month',
+    'payFromReserveOption': 'Pay from Reserve Fund',
+    'reserveFundBalance': 'Reserve fund balance',
+    'insufficientReserveError':
+        "This exceeds the reserve fund's current balance.",
+
+    // Admin: reserve fund
+    'reserveFundLabel': 'Reserve Fund',
+    'addToReserveFund': 'Add to Reserve Fund',
+    'currentReserveBalance': 'Current reserve balance',
+    'reserveFundAmountPerFlatLabel': 'Amount per flat',
+    'saveReserveFundBtn': 'Add to reserve',
+    'paidFromReserveBadge': 'Paid from Reserve Fund',
+
+    // Admin: work list
+    'workListTitle': 'Work List',
+    'addWorkItemTitle': 'Add task',
+    'workItemTitleHint': 'What needs to be done?',
+    'workItemDescriptionHint': 'Description (optional)',
+    'addWorkItemBtn': 'Add',
+    'noWorkItemsTitle': 'No tasks yet',
+    'noWorkItemsSub': 'Tap + to add something you need to get done.',
+    'deleteWorkItemTitle': 'Delete this task?',
 
     // Admin: add advance
     'advanceReasonLabel': 'Reason',

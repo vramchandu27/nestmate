@@ -8,6 +8,7 @@ import '../models/flat.dart';
 import '../models/issue_report.dart';
 import '../models/month_data.dart';
 import '../models/water_month.dart';
+import '../models/work_item.dart';
 
 /// In-memory seed data for the whole app. Numbers are chosen to reconcile
 /// exactly with the build spec's worked July example: 29 tankers x ₹1,400,
@@ -282,6 +283,20 @@ class MockSeed {
       location: 'Block 1 · 4th floor',
       flatNumber: demoResidentFlat,
       status: IssueStatus.resolved,
+    ),
+  ];
+
+  static List<WorkItem> workItems() => [
+    WorkItem(
+      id: 'work1',
+      title: 'Call electrician about lobby light',
+      description: 'Flickering since Monday, block 1 entrance.',
+    ),
+    WorkItem(
+      id: 'work2',
+      title: 'Renew CCTV AMC',
+      isDone: true,
+      completedAt: DateTime.now().subtract(const Duration(days: 2)),
     ),
   ];
 }

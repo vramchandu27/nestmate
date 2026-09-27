@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../config/app_theme.dart';
 import '../config/localization/app_localizations.dart';
 
-/// The resident bottom-nav shell: Building / Notices / Profile.
+/// The resident bottom-nav shell: Building / Notices / My Expenses / Profile.
 class ResidentBottomNav extends StatelessWidget {
   const ResidentBottomNav({
     super.key,
@@ -18,6 +18,7 @@ class ResidentBottomNav extends StatelessWidget {
     final items = <(IconData, String)>[
       (Icons.home_filled, AppLocalizations.t('navBuilding')),
       (Icons.campaign_rounded, AppLocalizations.t('navCommunity')),
+      (Icons.account_balance_wallet_rounded, AppLocalizations.t('navMyExpenses')),
       (Icons.person_rounded, AppLocalizations.t('navProfile')),
     ];
 

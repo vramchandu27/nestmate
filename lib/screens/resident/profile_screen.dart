@@ -10,7 +10,6 @@ import '../../utils/money.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/avatar_picker.dart';
 import '../../widgets/language_toggle.dart';
-import 'personal_expenses_screen.dart';
 
 /// Resident profile tab: identity, flat/association info, language
 /// toggle, and sign out.
@@ -84,48 +83,6 @@ class ProfileScreen extends StatelessWidget {
               icon: Icons.check_circle_rounded,
               label: AppLocalizations.t('totalPaidSoFar'),
               value: formatPaise(totalPaid),
-            ),
-            AppCard(
-              margin: const EdgeInsets.only(bottom: 9),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
-              onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const PersonalExpensesScreen(),
-                ),
-              ),
-              child: Row(
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppTheme.accentBlue,
-                      borderRadius: BorderRadius.circular(11),
-                    ),
-                    child: const Icon(
-                      Icons.account_balance_wallet_rounded,
-                      color: AppTheme.primary,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 13),
-                  Expanded(
-                    child: Text(
-                      AppLocalizations.t('myPersonalExpensesCard'),
-                      style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                        color: AppTheme.textDark,
-                      ),
-                    ),
-                  ),
-                  const Icon(
-                    Icons.chevron_right_rounded,
-                    color: AppTheme.textLight,
-                  ),
-                ],
-              ),
             ),
             AppCard(
               margin: const EdgeInsets.only(bottom: 9),

@@ -137,6 +137,11 @@ class WelcomeScreen extends StatelessWidget {
                           background: AppTheme.accentTeal,
                           iconColor: const Color(0xFF0F6B5E),
                         ),
+                        const SizedBox(height: 18),
+                        _PersonalTrackerCard(
+                          onTap: () =>
+                              Navigator.pushNamed(context, '/personal-login'),
+                        ),
                       ],
                     ),
                   ),
@@ -171,6 +176,88 @@ class WelcomeScreen extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// The standalone entry point for someone who wants nothing but the
+/// personal expense tracker — not a resident, not an admin. Deliberately
+/// styled apart from the plain informational [_FeatureRow]s above it (a
+/// dashed-look primary border, a "Start now" chip, a chevron) so it reads
+/// as something to tap, not just another fact about the app.
+class _PersonalTrackerCard extends StatelessWidget {
+  const _PersonalTrackerCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(16),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: AppTheme.sage.withValues(alpha: 0.45),
+              width: 1.5,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: AppTheme.sageBg,
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: const Icon(
+                  Icons.account_balance_wallet_rounded,
+                  color: AppTheme.sageDark,
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      AppLocalizations.t('personalTrackerCta'),
+                      style: const TextStyle(
+                        color: AppTheme.textDark,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 14,
+                      ),
+                    ),
+                    const SizedBox(height: 1),
+                    Text(
+                      AppLocalizations.t('personalTrackerCtaSub'),
+                      style: const TextStyle(
+                        color: AppTheme.textMedium,
+                        fontSize: 12,
+                        height: 1.35,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(
+                Icons.chevron_right_rounded,
+                color: AppTheme.sageDark,
+                size: 22,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

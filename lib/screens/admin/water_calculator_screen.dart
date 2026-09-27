@@ -1,11 +1,16 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
 import '../../config/localization/app_localizations.dart';
 import '../../providers/society_provider.dart';
+import '../../services/storage_service.dart';
 import '../../utils/money.dart';
 import '../../widgets/ambient_background.dart';
+import '../../widgets/full_screen_network_photo.dart';
 import '../../widgets/loading_overlay.dart';
 import '../../widgets/screen_header.dart';
 
@@ -87,6 +92,99 @@ class _WaterCalculatorScreenState extends State<WaterCalculatorScreen> {
       c.dispose();
     }
     super.dispose();
+  }
+
+  Future<void> _pickMeterPhoto(String flatNumber) async {
+    final existingUrl = context
+        .read<SocietyProvider>()
+        .currentMonth
+        .readingFor(flatNumber)
+        ?.meterPhotoUrl;
+    final action = await showModalBottomSheet<Object>(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: AppTheme.borderColor,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(height: 8),
+            if (existingUrl != null)
+              ListTile(
+                leading: const Icon(
+                  Icons.visibility_rounded,
+                  color: AppTheme.primary,
+                ),
+                title: Text(AppLocalizations.t('viewMeterPhoto')),
+                onTap: () => Navigator.pop(sheetContext, 'view'),
+              ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_camera_rounded,
+                color: AppTheme.primary,
+              ),
+              title: Text(AppLocalizations.t('takePhoto')),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.photo_library_rounded,
+                color: AppTheme.primary,
+              ),
+              title: Text(AppLocalizations.t('chooseFromGallery')),
+              onTap: () => Navigator.pop(sheetContext, ImageSource.gallery),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+    if (action == null) return;
+    if (!mounted) return;
+    if (action == 'view') {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => FullScreenNetworkPhoto(url: existingUrl!),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: action as ImageSource,
+        imageQuality: 80,
+        maxWidth: 1600,
+        maxHeight: 1600,
+      );
+      if (picked == null) return;
+      if (!mounted) return;
+      final society = context.read<SocietyProvider>();
+      final url = await StorageService().uploadPhoto(
+        basePath:
+            'buildings/${society.buildingId}/months/${society.currentMonth.id}/readings/$flatNumber',
+        file: File(picked.path),
+      );
+      await society.updateReading(flatNumber, meterPhotoUrl: url);
+    } catch (e) {
+      debugPrint('Meter photo pick/upload failed: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.t('photoPickFailed'))),
+      );
+    }
   }
 
   Future<void> _addToBills() async {
@@ -286,7 +384,7 @@ class _WaterCalculatorScreenState extends State<WaterCalculatorScreen> {
                               ),
                             ),
                             SizedBox(
-                              width: 60,
+                              width: 46,
                               child: Text(
                                 '${society.currentMonth.readingFor(flat.flatNumber)?.usageLitres ?? 0}',
                                 textAlign: TextAlign.center,
@@ -296,6 +394,13 @@ class _WaterCalculatorScreenState extends State<WaterCalculatorScreen> {
                                   color: AppTheme.primary,
                                 ),
                               ),
+                            ),
+                            const SizedBox(width: 4),
+                            _MeterPhotoButton(
+                              existingUrl: society.currentMonth
+                                  .readingFor(flat.flatNumber)
+                                  ?.meterPhotoUrl,
+                              onPick: () => _pickMeterPhoto(flat.flatNumber),
                             ),
                           ],
                         ),
@@ -379,6 +484,36 @@ class _NumField extends StatelessWidget {
           decoration: const InputDecoration(hintText: '0'),
         ),
       ],
+    );
+  }
+}
+
+class _MeterPhotoButton extends StatelessWidget {
+  const _MeterPhotoButton({required this.existingUrl, required this.onPick});
+
+  final String? existingUrl;
+  final VoidCallback onPick;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = existingUrl != null;
+    return GestureDetector(
+      onTap: onPick,
+      child: Container(
+        width: 28,
+        height: 28,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: hasPhoto ? AppTheme.sageBg : AppTheme.cardBackground,
+          shape: BoxShape.circle,
+          border: hasPhoto ? null : Border.all(color: AppTheme.borderColor),
+        ),
+        child: Icon(
+          hasPhoto ? Icons.check_circle_rounded : Icons.camera_alt_outlined,
+          size: 15,
+          color: hasPhoto ? AppTheme.success : AppTheme.textLight,
+        ),
+      ),
     );
   }
 }

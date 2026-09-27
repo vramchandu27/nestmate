@@ -43,7 +43,11 @@ class MonthData {
   int? frozenTotalTankerCostPaise;
 
   /// Sum of every common-pool expense this month (equal-split pool, §2b).
-  int get commonPoolPaise => expenses.fold(0, (sum, e) => sum + e.amountPaise);
+  /// Excludes reserve-funded expenses entirely — those are paid out of
+  /// [Building.reserveFundPaise], not billed to residents this month.
+  int get commonPoolPaise => expenses
+      .where((e) => !e.fundedByReserve)
+      .fold(0, (sum, e) => sum + e.amountPaise);
 
   MeterReading? readingFor(String flatNumber) {
     for (final r in readings) {

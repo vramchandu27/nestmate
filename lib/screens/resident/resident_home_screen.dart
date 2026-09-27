@@ -8,10 +8,12 @@ import '../../providers/app_provider.dart';
 import '../../providers/society_provider.dart';
 import '../../utils/money.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/nav_list_tile.dart';
 import '../../widgets/section_header.dart';
 import '../../widgets/status_pill.dart';
 import '../../widgets/waving_hand.dart';
 import 'bill_breakdown_screen.dart';
+import 'building_expenses_screen.dart';
 import 'pay_now_screen.dart';
 import 'report_issue_screen.dart';
 
@@ -74,6 +76,17 @@ class BuildingTabScreen extends StatelessWidget {
                     ),
                     icon: const Icon(Icons.receipt_long_rounded, size: 18),
                     label: Text(AppLocalizations.t('seeHowItsCalculated')),
+                  ),
+                  NavListTile(
+                    icon: Icons.savings_rounded,
+                    title: AppLocalizations.t('reserveFundLabel'),
+                    trailingText: formatPaise(society.building.reserveFundPaise),
+                    onTap: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const BuildingExpensesScreen(),
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 8),
                   SectionHeader(AppLocalizations.t('earlierMonths')),
@@ -266,6 +279,11 @@ class _BillHeroCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final isConfirmed = bill.status == BillStatus.confirmed;
     final isAwaitingConfirmation = bill.status == BillStatus.screenshotUploaded;
+    // A flat that fronted more than its own share this month ends up owed
+    // money rather than owing it — there's nothing for the resident to pay
+    // or tap here, just something the admin needs to settle with them
+    // directly (no in-app payout flow exists).
+    final isCredit = !isConfirmed && bill.amountDuePaise < 0;
 
     return Container(
       width: double.infinity,
@@ -374,7 +392,9 @@ class _BillHeroCard extends StatelessWidget {
           Text(
             isConfirmed
                 ? AppLocalizations.t('totalPaidSoFar')
-                : AppLocalizations.t('amountDue'),
+                : (isCredit
+                      ? AppLocalizations.t('creditBalanceLabel')
+                      : AppLocalizations.t('amountDue')),
             style: TextStyle(
               color: Colors.white.withValues(alpha: 0.85),
               fontSize: 12.5,
@@ -382,7 +402,7 @@ class _BillHeroCard extends StatelessWidget {
             ),
           ),
           Text(
-            formatPaise(bill.amountDuePaise),
+            formatPaise(isCredit ? -bill.amountDuePaise : bill.amountDuePaise),
             style: AppTheme.displayStyle(
               context,
               size: 38,
@@ -429,6 +449,33 @@ class _BillHeroCard extends StatelessWidget {
                     color: Colors.white,
                     fontWeight: FontWeight.w700,
                     fontSize: 14,
+                  ),
+                ),
+              ],
+            )
+          else if (isCredit)
+            // Same non-button treatment as the confirmed state above — no
+            // onPressed, since there's genuinely nothing to tap. The admin
+            // has no in-app payout flow, so this is explicitly a "go talk
+            // to a person" message, not an action.
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.info_outline_rounded,
+                  color: Colors.white,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Flexible(
+                  child: Text(
+                    AppLocalizations.t('creditContactAdminMessage'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
               ],

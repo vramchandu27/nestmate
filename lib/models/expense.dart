@@ -14,6 +14,7 @@ class Expense {
     this.splitRule = ExpenseSplitRule.allFlats,
     List<String>? specificFlatNumbers,
     this.paidByFlatNumber,
+    this.fundedByReserve = false,
     this.receiptPhotoUrl,
     DateTime? createdAt,
   }) : specificFlatNumbers = specificFlatNumbers ?? const [],
@@ -32,6 +33,13 @@ class Expense {
   /// cost out of pocket, so it still splits across everyone AND this flat
   /// gets credited the full amount as an offset against its own bill.
   String? paidByFlatNumber;
+
+  /// True = this expense is paid out of the building's reserve fund
+  /// (see [SocietyProvider.topUpReserveFund]) instead of being split across
+  /// residents' bills this month — mutually exclusive with
+  /// [paidByFlatNumber]. Excluded entirely from [MonthData.commonPoolPaise]
+  /// and the WhatsApp group summary message.
+  bool fundedByReserve;
 
   /// The receipt photo picked on the add-expense form, if any.
   String? receiptPhotoUrl;
@@ -56,6 +64,7 @@ class Expense {
     'splitRule': splitRule.name,
     'specificFlatNumbers': specificFlatNumbers,
     'paidByFlatNumber': paidByFlatNumber,
+    'fundedByReserve': fundedByReserve,
     'receiptPhotoUrl': receiptPhotoUrl,
     'createdAt': createdAt.millisecondsSinceEpoch,
   };
@@ -70,6 +79,7 @@ class Expense {
     ),
     specificFlatNumbers: (map['specificFlatNumbers'] as List?)?.cast<String>(),
     paidByFlatNumber: map['paidByFlatNumber'] as String?,
+    fundedByReserve: map['fundedByReserve'] as bool? ?? false,
     receiptPhotoUrl: map['receiptPhotoUrl'] as String?,
     createdAt: map['createdAt'] != null
         ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int)

@@ -112,7 +112,9 @@ class _LoginScreenState extends State<LoginScreen> {
       // has to happen FIRST, then checkFlatClaim as a second guard on top
       // of an already-authenticated session.
       String? flatClaimErrorKey;
-      var notAdmin = false;
+      // Null unless the Admin tab rejected this account — then it holds
+      // which of the two admin rejections happened (see adminSignInErrorKey).
+      String? notAdmin;
       try {
         await withLoadingOverlay(context, () async {
           // Real password check — signs into the Firebase credential
@@ -163,13 +165,18 @@ class _LoginScreenState extends State<LoginScreen> {
             // (e.g. a resident's own valid credentials used on the wrong
             // tab). Don't leave a signed-in session behind for a login
             // attempt that didn't actually grant the access it claimed to.
+            // Work out which rejection this is before signing out — the
+            // sign-out clears the resolved society that distinguishes them.
+            notAdmin = adminSignInErrorKey(context);
             await FirebaseAuth.instance.signOut();
-            notAdmin = true;
             return;
           }
-          Navigator.pushReplacementNamed(
+          // Clears the stack so the back button from a signed-in dashboard
+          // can't land the user back on Welcome/Login.
+          Navigator.pushNamedAndRemoveUntil(
             context,
             resolvePostAuthRoute(context),
+            (_) => false,
           );
           await awaitRouteTransition();
         });
@@ -201,8 +208,8 @@ class _LoginScreenState extends State<LoginScreen> {
           }
         });
         _formKey.currentState!.validate();
-      } else if (notAdmin) {
-        setState(() => _phoneError = AppLocalizations.t('adminAlreadyExists'));
+      } else if (notAdmin != null) {
+        setState(() => _phoneError = AppLocalizations.t(notAdmin!));
         _formKey.currentState!.validate();
       }
       return;
@@ -237,16 +244,20 @@ class _LoginScreenState extends State<LoginScreen> {
               // A verified phone number with no matching flat/admin — never
               // fall through to some other flat's data. Undo the sign-in and
               // surface a real error instead of silently landing somewhere.
+              // Resolve the admin wording before the sign-out clears what it
+              // reads (see adminSignInErrorKey).
+              final errorKey = _isAdminMode
+                  ? adminSignInErrorKey(context)
+                  : 'phoneNotRegistered';
               await FirebaseAuth.instance.signOut();
-              setState(
-                () => _phoneError = AppLocalizations.t('phoneNotRegistered'),
-              );
+              setState(() => _phoneError = AppLocalizations.t(errorKey));
               _formKey.currentState!.validate();
               return;
             }
-            Navigator.pushReplacementNamed(
+            Navigator.pushNamedAndRemoveUntil(
               context,
               resolvePostAuthRoute(context),
+              (_) => false,
             );
             await awaitRouteTransition();
           case PhoneCodeStatus.codeSent:
@@ -374,7 +385,7 @@ class _LoginScreenState extends State<LoginScreen> {
                               AppLocalizations.t('welcome'),
                               style: const TextStyle(
                                 fontWeight: FontWeight.w800,
-                                fontSize: 15,
+                                fontSize: 19,
                                 color: AppTheme.textDark,
                               ),
                             ),

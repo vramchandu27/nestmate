@@ -1,13 +1,22 @@
+import 'dart:typed_data';
+
+import 'package:file_saver/file_saver.dart';
 import 'package:flutter/material.dart';
+import 'package:printing/printing.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
 import '../../config/localization/app_localizations.dart';
+import '../../models/bill.dart';
+import '../../models/expense.dart';
+import '../../models/water_month.dart';
 import '../../providers/app_provider.dart';
 import '../../providers/society_provider.dart';
 import '../../utils/money.dart';
+import '../../utils/statement_pdf.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/app_card.dart';
+import '../../widgets/full_screen_network_photo.dart';
 import '../../widgets/screen_header.dart';
 import 'pay_now_screen.dart';
 
@@ -16,6 +25,124 @@ import 'pay_now_screen.dart';
 /// common share, and any offset credits this flat is owed.
 class BillBreakdownScreen extends StatelessWidget {
   const BillBreakdownScreen({super.key});
+
+  void _openMeterPhoto(BuildContext context, String? url) {
+    if (url == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.t('noMeterPhotoYet'))),
+      );
+      return;
+    }
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => FullScreenNetworkPhoto(url: url)),
+    );
+  }
+
+  /// Both the download and share actions build the exact same PDF — this
+  /// just keeps that one call site instead of duplicating it.
+  Future<Uint8List> _buildStatement({
+    required String buildingName,
+    required String monthLabel,
+    required String flatNumber,
+    required String residentName,
+    required bool tankerExempt,
+    required MeterReading? reading,
+    required Bill bill,
+    required List<Expense> creditExpenses,
+  }) {
+    return buildStatementPdf(
+      buildingName: buildingName,
+      monthLabel: monthLabel,
+      flatNumber: flatNumber,
+      residentName: residentName,
+      tankerExempt: tankerExempt,
+      reading: reading,
+      bill: bill,
+      creditExpenses: creditExpenses,
+    );
+  }
+
+  /// Saves the statement to wherever the resident picks (Storage Access
+  /// Framework's native "Save As" dialog — Downloads by default, or Drive,
+  /// etc.) — an actual download, distinct from [_shareStatement] below.
+  Future<void> _downloadStatement(
+    BuildContext context, {
+    required String buildingName,
+    required String monthLabel,
+    required String flatNumber,
+    required String residentName,
+    required bool tankerExempt,
+    required MeterReading? reading,
+    required Bill bill,
+    required List<Expense> creditExpenses,
+  }) async {
+    try {
+      final bytes = await _buildStatement(
+        buildingName: buildingName,
+        monthLabel: monthLabel,
+        flatNumber: flatNumber,
+        residentName: residentName,
+        tankerExempt: tankerExempt,
+        reading: reading,
+        bill: bill,
+        creditExpenses: creditExpenses,
+      );
+      final path = await FileSaver.instance.saveAs(
+        name: 'Statement_${monthLabel.replaceAll(' ', '_')}_$flatNumber',
+        bytes: bytes,
+        ext: 'pdf',
+        mimeType: MimeType.pdf,
+      );
+      if (!context.mounted) return;
+      if (path != null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(AppLocalizations.t('statementSaved'))),
+        );
+      }
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.t('statementFailed'))),
+      );
+    }
+  }
+
+  /// Opens the OS share sheet (WhatsApp, email, etc.) — separate from
+  /// [_downloadStatement], which actually saves the file locally.
+  Future<void> _shareStatement(
+    BuildContext context, {
+    required String buildingName,
+    required String monthLabel,
+    required String flatNumber,
+    required String residentName,
+    required bool tankerExempt,
+    required MeterReading? reading,
+    required Bill bill,
+    required List<Expense> creditExpenses,
+  }) async {
+    try {
+      final bytes = await _buildStatement(
+        buildingName: buildingName,
+        monthLabel: monthLabel,
+        flatNumber: flatNumber,
+        residentName: residentName,
+        tankerExempt: tankerExempt,
+        reading: reading,
+        bill: bill,
+        creditExpenses: creditExpenses,
+      );
+      await Printing.sharePdf(
+        bytes: bytes,
+        filename: 'Statement_${monthLabel.replaceAll(' ', '_')}_$flatNumber.pdf',
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(AppLocalizations.t('statementFailed'))),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -148,16 +275,10 @@ class BillBreakdownScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               GestureDetector(
-                                onTap: () =>
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      SnackBar(
-                                        content: Text(
-                                          AppLocalizations.t(
-                                            'featureComingSoon',
-                                          ),
-                                        ),
-                                      ),
-                                    ),
+                                onTap: () => _openMeterPhoto(
+                                  context,
+                                  reading?.meterPhotoUrl,
+                                ),
                                 child: Text(
                                   '📷 ${AppLocalizations.t('viewMeterPhoto')}',
                                   style: const TextStyle(
@@ -235,14 +356,18 @@ class BillBreakdownScreen extends StatelessWidget {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () =>
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text(
-                                        AppLocalizations.t('featureComingSoon'),
-                                      ),
-                                    ),
-                                  ),
+                              onPressed: () => _downloadStatement(
+                                context,
+                                buildingName: society.building.name,
+                                monthLabel: month.label,
+                                flatNumber: flatNumber,
+                                residentName:
+                                    flat?.residentName ?? '',
+                                tankerExempt: flat?.tankerExempt ?? false,
+                                reading: reading,
+                                bill: bill,
+                                creditExpenses: creditExpenses,
+                              ),
                               style: OutlinedButton.styleFrom(
                                 padding: const EdgeInsets.symmetric(
                                   horizontal: 8,
@@ -262,7 +387,35 @@ class BillBreakdownScreen extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const SizedBox(width: 12),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 52,
+                            height: 52,
+                            decoration: BoxDecoration(
+                              border: Border.all(color: AppTheme.borderColor),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: IconButton(
+                              onPressed: () => _shareStatement(
+                                context,
+                                buildingName: society.building.name,
+                                monthLabel: month.label,
+                                flatNumber: flatNumber,
+                                residentName: flat?.residentName ?? '',
+                                tankerExempt: flat?.tankerExempt ?? false,
+                                reading: reading,
+                                bill: bill,
+                                creditExpenses: creditExpenses,
+                              ),
+                              tooltip: AppLocalizations.t('shareStatement'),
+                              icon: const Icon(
+                                Icons.share_rounded,
+                                size: 18,
+                                color: AppTheme.textMedium,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: ElevatedButton.icon(
                               onPressed: () => Navigator.push(

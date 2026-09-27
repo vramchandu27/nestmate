@@ -45,7 +45,11 @@ String buildGroupSummaryMessage({
     ..writeln()
     ..writeln('*Common Pool Expenses*');
 
-  for (final e in month.expenses) {
+  // Reserve-funded expenses are paid out of Building.reserveFundPaise, not
+  // billed to residents this month — they must not appear here at all, not
+  // just be excluded from the total (which MonthData.commonPoolPaise
+  // already handles on its own).
+  for (final e in month.expenses.where((e) => !e.fundedByReserve)) {
     final frontedNote = e.paidByFlatNumber != null
         ? ' (fronted by ${e.paidByFlatNumber})'
         : '';

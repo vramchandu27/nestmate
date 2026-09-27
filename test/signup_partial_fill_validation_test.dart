@@ -32,8 +32,10 @@ void main() {
         ),
       );
 
-      // Fill only the flat number field (the first TextFormField).
-      await tester.enterText(find.byType(TextFormField).first, '101');
+      // Fill only the flat number field. It's the second TextFormField now
+      // — the join code that identifies which society the resident is
+      // joining comes first.
+      await tester.enterText(find.byType(TextFormField).at(1), '101');
       await tester.pump();
 
       final createAccountButton = find.widgetWithText(
@@ -87,12 +89,14 @@ void main() {
       );
 
       final fields = find.byType(TextFormField);
-      // Order in the form: flatNumber, name, phone, password, confirm.
-      await tester.enterText(fields.at(0), '101');
-      await tester.enterText(fields.at(1), 'Test Resident');
-      await tester.enterText(fields.at(2), '9876543210');
-      await tester.enterText(fields.at(3), 'password123');
-      // fields.at(4) — confirm password — deliberately left empty.
+      // Order in the form: joinCode, flatNumber, name, phone, password,
+      // confirm.
+      await tester.enterText(fields.at(0), 'SAV-2K4M');
+      await tester.enterText(fields.at(1), '101');
+      await tester.enterText(fields.at(2), 'Test Resident');
+      await tester.enterText(fields.at(3), '9876543210');
+      await tester.enterText(fields.at(4), 'password123');
+      // fields.at(5) — confirm password — deliberately left empty.
       await tester.pump();
 
       final createAccountButton = find.widgetWithText(

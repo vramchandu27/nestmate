@@ -23,6 +23,7 @@ class SignupScreen extends StatefulWidget {
 }
 
 class _SignupScreenState extends State<SignupScreen> {
+  final TextEditingController _joinCodeController = TextEditingController();
   final TextEditingController _flatNumberController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
   final TextEditingController _phoneController = TextEditingController();
@@ -36,11 +37,13 @@ class _SignupScreenState extends State<SignupScreen> {
   bool _isLoading = false;
   bool _agreedToTerms = false;
   bool _submitted = false;
+  String? _joinCodeError;
   String? _flatNumberError;
   String? _phoneError;
 
   @override
   void dispose() {
+    _joinCodeController.dispose();
     _flatNumberController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
@@ -53,9 +56,25 @@ class _SignupScreenState extends State<SignupScreen> {
     setState(() {
       _flatNumberError = null;
       _phoneError = null;
+      _joinCodeError = null;
       _submitted = true;
     });
     if (!_formKey.currentState!.validate()) return;
+
+    // Which society is this resident joining? The join code their admin
+    // gave them resolves that, and it has to happen before the flat check
+    // below — "flat 402" only means anything within one society.
+    final society = context.read<SocietyProvider>();
+    final buildingId = await society.findBuildingIdByJoinCode(
+      _joinCodeController.text,
+    );
+    if (!mounted) return;
+    if (buildingId == null) {
+      setState(() => _joinCodeError = AppLocalizations.t('invalidJoinCode'));
+      _formKey.currentState!.validate();
+      return;
+    }
+    society.attachToBuilding(buildingId);
 
     // Guard: this flat + phone must already exist as a record the admin
     // added during setup — a resident can't self-register against a flat
@@ -207,7 +226,13 @@ class _SignupScreenState extends State<SignupScreen> {
     );
     await completeSignIn(ctx, flatNumberOverride: flatNumber);
     if (!ctx.mounted) return;
-    Navigator.pushReplacementNamed(ctx, resolvePostAuthRoute(ctx));
+    // Clears the stack — signup/OTP screens must not stay behind a
+    // signed-in dashboard for the back button to return to.
+    Navigator.pushNamedAndRemoveUntil(
+      ctx,
+      resolvePostAuthRoute(ctx),
+      (_) => false,
+    );
     await awaitRouteTransition();
   }
 
@@ -302,6 +327,35 @@ class _SignupScreenState extends State<SignupScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
+                                // Join code — identifies which society this
+                                // resident belongs to. Their admin shares it
+                                // from the dashboard.
+                                _InputLabel(
+                                  label: AppLocalizations.t('joinCodeLabel'),
+                                ),
+                                TextFormField(
+                                  controller: _joinCodeController,
+                                  enabled: !_isLoading,
+                                  textCapitalization:
+                                      TextCapitalization.characters,
+                                  decoration: authFieldDecoration(
+                                    hint: 'SAV-2K4M',
+                                    icon: Icons.vpn_key_rounded,
+                                  ),
+                                  validator: (v) {
+                                    if (_joinCodeError != null) {
+                                      return _joinCodeError;
+                                    }
+                                    if (v == null || v.trim().isEmpty) {
+                                      return AppLocalizations.t(
+                                        'enterJoinCode',
+                                      );
+                                    }
+                                    return null;
+                                  },
+                                ),
+                                const SizedBox(height: 20),
+
                                 // Flat Number
                                 _InputLabel(
                                   label: AppLocalizations.t('flatNumber'),

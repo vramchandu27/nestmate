@@ -12,6 +12,7 @@ import '../providers/app_provider.dart';
 import '../providers/society_provider.dart';
 import '../services/push_notification_service.dart';
 import '../services/storage_service.dart';
+import '../utils/phone.dart';
 import '../widgets/loading_overlay.dart';
 
 /// How long a signed-in session stays valid with no fresh login — matches
@@ -20,6 +21,21 @@ import '../widgets/loading_overlay.dart';
 /// fixed expiry from the very first login.
 const _sessionValidity = Duration(days: 7);
 const _lastLoginPrefsKey = 'lastLoginAtMillis';
+
+/// Which error a rejected admin sign-in should actually show.
+/// [completeSignIn] returns a bare `false` for two very different
+/// situations: someone else holds this society's admin seat, or this phone
+/// number has no society at all. The second is what every brand-new admin
+/// hits on their very first login, and telling them "this building already
+/// has an admin" is a dead end — it points at a society they've never heard
+/// of instead of at the Create Account button they actually need.
+///
+/// Read this *before* signing the rejected user back out: that sign-out
+/// clears the resolved society, which is the very thing being checked here.
+String adminSignInErrorKey(BuildContext context) =>
+    context.read<SocietyProvider>().hasBuilding
+    ? 'adminAlreadyExists'
+    : 'adminNoSocietyYet';
 
 /// Decides where to land the user right after a successful login / OTP /
 /// signup, based on their role and how far along the admin setup flow is.
@@ -30,6 +46,9 @@ String resolvePostAuthRoute(BuildContext context) {
   if (appProvider.userRole == UserRole.committee) {
     return '/committee-dashboard';
   }
+  if (appProvider.userRole == UserRole.personal) {
+    return '/personal-shell';
+  }
   if (!appProvider.userRole.isAdmin) {
     return '/resident-shell';
   }
@@ -39,13 +58,16 @@ String resolvePostAuthRoute(BuildContext context) {
 }
 
 /// Completes sign-in based on whatever role the user picked on the way in
-/// (the login screen's Resident/Admin tabs and the "continue as committee"
-/// link set [AppProvider.userRole] before this runs), using the real
-/// Firebase [FirebaseAuth.instance.currentUser] as the identity:
+/// (the login screen's Resident/Admin tabs, the "continue as committee"
+/// link, or the Welcome screen's personal-tracker entry point all set
+/// [AppProvider.userRole] before this runs), using the real Firebase
+/// [FirebaseAuth.instance.currentUser] as the identity:
 /// - communityAdmin → fills in the admin's identity from the building, and
 ///   binds [phone] as the sole admin if the seat isn't claimed yet (see
 ///   [SocietyProvider.claimAdminIfUnbound] — there is only ever one admin).
 /// - committee → generic committee identity (read-only, not tied to a flat).
+/// - personal → bare phone-verified identity, no building/flat lookup at
+///   all — see [UserRole.personal].
 /// - otherwise (resident) → signs in as [flatNumberOverride] if given (e.g.
 ///   the flat a signup just validated against the roster — see
 ///   [SocietyProvider.claimFlatForSignup]); otherwise looks up the flat
@@ -70,6 +92,16 @@ Future<bool> completeSignIn(
   final photoUrl = await _fetchProfilePhotoUrl(uid);
   await _recordLoginTimestamp();
 
+  // Which society this user belongs to has to be settled before anything
+  // below reads building data. The provider resolves this on its own auth
+  // listener too, but that's async and would race this function — awaiting
+  // it here makes the ordering deterministic. Personal-tracker users have
+  // no society at all, so they skip it.
+  if (appProvider.userRole != UserRole.personal) {
+    await society.ensureBuildingAttached();
+    if (!context.mounted) return false;
+  }
+
   if (appProvider.userRole.isAdmin) {
     // The Admin tab merely being selected proves nothing on its own — the
     // login/OTP screens' own "adminAlreadyExists" pre-checks are only
@@ -81,6 +113,19 @@ Future<bool> completeSignIn(
     if (phone == null || phone.isEmpty) return false;
     final isRealAdmin = await society.claimAdminIfUnbound(phone);
     if (!isRealAdmin) return false;
+
+    // Same backfill as the resident path below — an admin is a member of
+    // their own society too, and caching the id keeps later logins to a
+    // single read.
+    final adminBuildingId = society.buildingId;
+    if (adminBuildingId != null) {
+      await society.recordMembership(
+        buildingId: adminBuildingId,
+        flatNumber: '',
+        phone: phone,
+      );
+      await society.rememberBuildingForCurrentUser(adminBuildingId);
+    }
 
     appProvider.setUserInfo(
       userId: uid,
@@ -110,6 +155,19 @@ Future<bool> completeSignIn(
     return true;
   }
 
+  if (appProvider.userRole == UserRole.personal) {
+    // Not tied to any building/flat at all — nothing to look up or claim,
+    // just a bare phone-verified identity for the personal expense tracker.
+    appProvider.setUserInfo(
+      userId: uid,
+      communityId: '',
+      role: UserRole.personal,
+      userPhone: phone,
+      userPhotoUrl: photoUrl,
+    );
+    return true;
+  }
+
   final lookedUpFlat = flatNumberOverride == null && phone != null
       ? await society.findFlatByPhone(phone)
       : null;
@@ -119,6 +177,22 @@ Future<bool> completeSignIn(
     flatNumber = MockSeed.demoResidentFlat;
   }
   final flat = lookedUpFlat ?? society.flatByNumber(flatNumber);
+
+  // Record this resident as a member of the society they just resolved
+  // into, and cache which one it is. Both are written on every login, not
+  // just at signup: that's what backfills accounts created before the app
+  // supported multiple societies, and the member document is what the
+  // tightened security rules check.
+  final resolvedBuildingId = society.buildingId;
+  if (resolvedBuildingId != null && phone != null) {
+    await society.recordMembership(
+      buildingId: resolvedBuildingId,
+      flatNumber: flatNumber,
+      phone: phone,
+    );
+    await society.rememberBuildingForCurrentUser(resolvedBuildingId);
+  }
+
   appProvider.setUserInfo(
     userId: uid,
     communityId: society.building.name,
@@ -187,12 +261,18 @@ Future<String?> tryResumeSession(BuildContext context) async {
   final society = context.read<SocietyProvider>();
 
   try {
+    // Resolve which society this user belongs to before checking their
+    // role in it — there's no single fixed building to read any more.
+    final buildingId = await society.ensureBuildingAttached();
+    if (buildingId == null) return null;
+    if (!context.mounted) return null;
+
     final buildingDoc = await FirebaseFirestore.instance
         .collection('buildings')
-        .doc('main')
+        .doc(buildingId)
         .get()
         .timeout(const Duration(seconds: 8));
-    if (buildingDoc.data()?['adminPhone'] == phone) {
+    if (buildingDoc.data()?['adminPhone'] == toE164Phone(phone)) {
       appProvider.setUserRole(UserRole.communityAdmin);
       if (!context.mounted) return null;
       await completeSignIn(context, phone: phone);

@@ -12,11 +12,16 @@ class AppLocalizationsHi {
     'back': 'वापस',
     'fieldRequired': 'यह फ़ील्ड आवश्यक है',
     'enterValidAmount': 'एक मान्य राशि दर्ज करें',
-    'welcome': 'NestMate',
+    'welcome': 'Resko',
     'tagline': 'सामुदायिक जीवन को आसान बना रहे हैं।',
     'welcomeSubtitle':
         'मेंटेनेंस अब आसान है। अपने फोन पर आए वन-टाइम कोड से लॉगिन करें, या अपने बनाए हुए पासवर्ड से।',
     'getStarted': 'शुरू करें',
+    'personalTrackerCta': 'किसी बिल्डिंग से नहीं जुड़े?',
+    'personalTrackerCtaSub': 'सेटअप छोड़ें — सिर्फ अपने व्यक्तिगत खर्च ट्रैक करें।',
+    'personalLoginHeading': 'अपने खर्चों को ट्रैक करें',
+    'personalLoginSub': 'किसी बिल्डिंग या फ्लैट की जरूरत नहीं — बस शुरू करने के लिए अपना फ़ोन नंबर वेरीफाई करें।',
+    'continueBtn': 'जारी रखें',
     'clearMonthlyBills': 'स्पष्ट मासिक बिल',
     'seeExactlyWhatYouOwe': 'देखें कि आपको कितना और क्यों देना है',
     'payInSeconds': 'सेकंडों में भुगतान करें',
@@ -43,6 +48,8 @@ class AppLocalizationsHi {
     'confirmPassword': 'पासवर्ड की पुष्टि करें',
     'flatNumber': 'फ्लैट नंबर',
     'enterFlatNumber': 'कृपया अपना फ्लैट नंबर दर्ज करें',
+    'enterJoinCode': 'कृपया अपनी सोसाइटी का जॉइन कोड दर्ज करें',
+    'invalidJoinCode': 'यह जॉइन कोड किसी सोसाइटी से मेल नहीं खाता',
     'name': 'नाम',
     'enterYourName': 'अपना पूरा नाम दर्ज करें',
     'enterOtp': '6-अंकों का OTP दर्ज करें',
@@ -60,7 +67,7 @@ class AppLocalizationsHi {
     'agreeToTerms': 'कृपया नियम और शर्तों से सहमत हों',
     'passwordMinimumLength': 'पासवर्ड कम से कम 6 अक्षरों का होना चाहिए',
     'passwordMismatch': 'पासवर्ड मेल नहीं खाते',
-    'joinNestMate': 'NestMate से जुड़ें',
+    'joinNestMate': 'Resko से जुड़ें',
     'createAdminAccount': 'एडमिन खाता बनाएं',
     'adminSignupSub': 'अपना नाम, फोन नंबर और पासवर्ड सेट करें — इसके बाद आप अपनी बिल्डिंग रजिस्टर करेंगे।',
     'enterName': 'कृपया अपना नाम दर्ज करें',
@@ -99,6 +106,9 @@ class AppLocalizationsHi {
     'bills': 'बिल',
     'pastBills': 'पिछले बिल',
     'amountDue': 'देय राशि',
+    'creditBalanceLabel': 'आपको मिलेगा',
+    'creditContactAdminMessage':
+        'यह राशि आपको एडमिन द्वारा दी जाएगी। कृपया एडमिन से संपर्क करें।',
     'billBreakdown': 'बिल विवरण',
     'seeHowItsCalculated': 'देखें यह कैसे गणना हुआ',
     'waterUsage': 'पानी का उपयोग',
@@ -108,10 +118,14 @@ class AppLocalizationsHi {
     'usage': 'उपयोग',
     'yourUsageThisMonth': 'इस महीने आपका उपयोग',
     'viewMeterPhoto': 'मीटर फोटो देखें',
+    'noMeterPhotoYet': 'इस महीने के लिए अभी तक कोई मीटर फोटो नहीं जोड़ा गया है।',
     'waterTankerShare': 'पानी टैंकर हिस्सा',
     'commonMaintenance': 'सामान्य रखरखाव',
     'subtotal': 'उप-योग',
     'downloadStatement': 'स्टेटमेंट डाउनलोड करें',
+    'statementFailed': 'स्टेटमेंट नहीं बन सका। कृपया फिर से कोशिश करें।',
+    'statementSaved': 'स्टेटमेंट सेव हो गया।',
+    'shareStatement': 'स्टेटमेंट शेयर करें',
     'commonShare': 'सामान्य हिस्सा',
     'credits': 'क्रेडिट',
     'openingBalance': 'शुरुआती बकाया',
@@ -179,6 +193,8 @@ class AppLocalizationsHi {
         'यह फोन नंबर इस फ्लैट के रिकॉर्ड से मेल नहीं खाता। अपने एडमिन से संपर्क करें।',
     'adminAlreadyExists':
         'इस बिल्डिंग का एडमिन पहले से मौजूद है। उनसे अपना फ्लैट जुड़वाएं, या हैंडओवर का अनुरोध करें।',
+    'adminNoSocietyYet':
+        'इस नंबर पर अभी कोई सोसाइटी पंजीकृत नहीं है। अपनी सोसाइटी बनाने के लिए नीचे Create Account दबाएं।',
     'phoneNotRegistered':
         'इस नंबर के लिए कोई खाता नहीं मिला। कृपया पहले साइन अप करें।',
     'invalidOtp': 'अमान्य OTP। कृपया फिर से प्रयास करें।',
@@ -188,6 +204,7 @@ class AppLocalizationsHi {
     // Resident shell / nav
     'navBuilding': 'बिल्डिंग',
     'navCommunity': 'सूचनाएं',
+    'navMyExpenses': 'मेरे खर्च',
     'navProfile': 'प्रोफ़ाइल',
 
     // Community feed
@@ -208,12 +225,31 @@ class AppLocalizationsHi {
     'joinedTo': 'इसका हिस्सा',
     'leaveAssociation': 'एसोसिएशन छोड़ें',
 
+    // Building Expenses (resident, read-only)
+    'buildingExpensesTitle': 'बिल्डिंग खर्च',
+    'commonPoolTotalLabel': 'कुल सामान्य निधि',
+    'noExpensesYetTitle': 'अभी तक कोई खर्च नहीं',
+    'noExpensesYetSub': 'आपके एडमिन ने इस महीने अभी तक कोई खर्च दर्ज नहीं किया है।',
+
     // Personal Expenses
     'myPersonalExpensesCard': 'मेरे व्यक्तिगत खर्च',
     'personalExpenses': 'व्यक्तिगत खर्च',
     'addPersonalExpense': 'खर्च जोड़ें',
+    'editPersonalExpense': 'खर्च बदलें',
     'totalSpentLabel': 'कुल खर्च',
     'spendingByCategoryLabel': 'श्रेणी के अनुसार खर्च',
+    'monthlySalaryLabel': 'मासिक वेतन',
+    'addSalaryBtn': 'जोड़ें',
+    'editBtn': 'बदलें',
+    'setSalaryTitle': 'अपना मासिक वेतन दर्ज करें',
+    'saveBtn': 'सेव करें',
+    'remainingBalanceLabel': 'शेष राशि',
+    'overspentLabel': 'अधिक खर्च',
+    'monthlyBudgetsLabel': 'मासिक बजट',
+    'monthlyBudgetsSub': 'हर श्रेणी के लिए खर्च की सीमा तय करें — सेट या बदलने के लिए टैप करें।',
+    'setBudgetTitle': 'बजट तय करें',
+    'monthlyBudgetHint': 'मासिक सीमा',
+    'setBudgetBtn': 'बजट तय करें',
     'noPersonalExpensesTitle': 'अभी तक कोई व्यक्तिगत खर्च नहीं',
     'noPersonalExpensesSub': 'अपना खुद का खर्च ट्रैक करें — बिल्डिंग के वित्त से अलग।',
     'expenseDateLabel': 'तारीख',
@@ -264,6 +300,18 @@ class AppLocalizationsHi {
     'waterMeteredLabel': 'यह बिल्डिंग पानी का बिल उपयोग के अनुसार करती है (मीटर्ड)',
     'committeeEnabledLabel': 'रीड-ओनली कमेटी सदस्य की अनुमति दें',
     'joinCodeLabel': 'निवासी जुड़ाव कोड',
+    'societyReadyTitle': 'आपकी सोसाइटी तैयार है',
+    'societyReadySub':
+        'यह कोड अपने निवासियों को भेजें। साइन अप करते समय वे यही कोड डालेंगे — जुड़ने का यही एकमात्र तरीका है।',
+    'shareWithResidents': 'निवासियों को भेजें',
+    'joinCodeCopied': 'जुड़ाव कोड कॉपी हो गया',
+    'joinCodeShareMessage':
+        'Resko पर हमारी सोसाइटी से जुड़ें।\n\nजुड़ाव कोड: %s\n\nऐप डाउनलोड करें, Sign Up दबाएं, और यह कोड अपने फ्लैट नंबर के साथ डालें।',
+    'duplicateSocietyTitle': 'इस नाम की सोसाइटी पहले से मौजूद है',
+    'duplicateSocietyBody':
+        'अगर आपकी बिल्डिंग से किसी ने पहले ही यह बना दिया है, तो उनसे जुड़ाव कोड लें और निवासी के रूप में साइन अप करें। दूसरी सोसाइटी बनाने से आपके निवासी दो अलग बिल्डिंगों में बंट जाएंगे।',
+    'createAnyway': 'फिर भी बनाएं',
+    'goBack': 'वापस जाएं',
 
     // Admin: add flats & residents
     'addFlatsResidents': 'फ्लैट्स और निवासी जोड़ें',
@@ -315,6 +363,29 @@ class AppLocalizationsHi {
     'deleteExpenseTitle': 'खर्च हटाएं?',
     'deleteExpenseConfirm':
         'यह इस महीने के खर्चों और बिलों से हट जाएगा। इसे वापस नहीं लाया जा सकता।',
+    'howFundedLabel': 'यह किससे भुगतान किया जा रहा है?',
+    'splitAcrossResidentsOption': 'इस महीने निवासियों में बांटें',
+    'payFromReserveOption': 'रिज़र्व फंड से भुगतान करें',
+    'reserveFundBalance': 'रिज़र्व फंड बैलेंस',
+    'insufficientReserveError': 'यह रिज़र्व फंड के मौजूदा बैलेंस से अधिक है।',
+
+    // Admin: reserve fund
+    'reserveFundLabel': 'रिज़र्व फंड',
+    'addToReserveFund': 'रिज़र्व फंड में जोड़ें',
+    'currentReserveBalance': 'मौजूदा रिज़र्व बैलेंस',
+    'reserveFundAmountPerFlatLabel': 'प्रति फ्लैट राशि',
+    'saveReserveFundBtn': 'रिज़र्व में जोड़ें',
+    'paidFromReserveBadge': 'रिज़र्व फंड से भुगतान किया गया',
+
+    // Admin: work list
+    'workListTitle': 'कार्य सूची',
+    'addWorkItemTitle': 'कार्य जोड़ें',
+    'workItemTitleHint': 'क्या करना है?',
+    'workItemDescriptionHint': 'विवरण (वैकल्पिक)',
+    'addWorkItemBtn': 'जोड़ें',
+    'noWorkItemsTitle': 'अभी कोई कार्य नहीं',
+    'noWorkItemsSub': 'कुछ करने के लिए + पर टैप करें।',
+    'deleteWorkItemTitle': 'यह कार्य हटाएं?',
 
     // Admin: add advance
     'advanceReasonLabel': 'कारण',

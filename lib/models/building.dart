@@ -16,6 +16,7 @@ class Building {
     this.committeeEnabled = false,
     this.createdBy = '',
     this.currentMonthId = '',
+    this.reserveFundPaise = 0,
     DateTime? createdAt,
   }) : commonCategories = commonCategories ?? const [
          'Watchman',
@@ -76,6 +77,14 @@ class Building {
   /// not necessarily the real calendar month).
   String currentMonthId;
 
+  /// Money collected from residents beyond what's needed for the current
+  /// month's costs, banked for future spending — topped up via
+  /// [SocietyProvider.topUpReserveFund] and drawn down by expenses marked
+  /// [Expense.fundedByReserve]. Deliberately separate from
+  /// [MonthData.commonPoolPaise]: reserve-funded spending must never be
+  /// billed to residents a second time or appear in the monthly split.
+  int reserveFundPaise;
+
   Map<String, dynamic> toMap() => {
     'name': name,
     'adminName': adminName,
@@ -93,6 +102,7 @@ class Building {
     'createdBy': createdBy,
     'createdAt': createdAt.millisecondsSinceEpoch,
     'currentMonthId': currentMonthId,
+    'reserveFundPaise': reserveFundPaise,
   };
 
   factory Building.fromMap(Map<String, dynamic> map) => Building(
@@ -111,6 +121,7 @@ class Building {
     committeeEnabled: map['committeeEnabled'] as bool? ?? false,
     createdBy: map['createdBy'] as String? ?? '',
     currentMonthId: map['currentMonthId'] as String? ?? '',
+    reserveFundPaise: map['reserveFundPaise'] as int? ?? 0,
     createdAt: map['createdAt'] != null
         ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'] as int)
         : DateTime.now(),

@@ -12,6 +12,11 @@ enum UserRole {
   /// Resident accessing their own flat and community info
   resident,
 
+  /// Not tied to any building or flat at all — just uses the app's
+  /// personal expense tracker on its own. See [PersonalExpensesScreen]'s
+  /// standalone entry point from the Welcome screen.
+  personal,
+
   /// No role assigned yet (new user)
   none,
 }
@@ -27,6 +32,8 @@ extension UserRoleExtension on UserRole {
         return 'Committee';
       case UserRole.resident:
         return 'Resident';
+      case UserRole.personal:
+        return 'Personal';
       case UserRole.none:
         return 'Unassigned';
     }
@@ -42,6 +49,8 @@ extension UserRoleExtension on UserRole {
         return 'Committee Member';
       case UserRole.resident:
         return 'Resident';
+      case UserRole.personal:
+        return 'Personal';
       case UserRole.none:
         return 'No Role';
     }

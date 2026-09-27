@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Resko — Privacy Policy</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0 auto; max-width: 46rem; padding: 2.5rem 1.25rem 5rem;
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #ffffff; color: #1a1a1a;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { background: #14171c; color: #e6e9ee; }
+    h1, h2 { color: #f2f4f7; }
+    th { color: #9aa4b2; }
+    td, th { border-color: #2a2f38; }
+    code { background: #1d222a; }
+  }
+  h1 { font-size: 1.9rem; line-height: 1.2; margin: 0 0 .4rem; }
+  .updated { color: #6b7280; font-size: .9rem; margin: 0 0 2rem; }
+  h2 { font-size: 1.18rem; margin: 2.2rem 0 .6rem; }
+  p, li { margin: .5rem 0; }
+  table { border-collapse: collapse; width: 100%; font-size: .95rem; margin: .8rem 0; }
+  th, td { text-align: left; padding: .5rem .6rem; border-bottom: 1px solid #e5e7eb; vertical-align: top; }
+  th { font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; }
+  code { background: #f3f4f6; padding: .1em .35em; border-radius: 3px; font-size: .9em; }
+  .box { border-left: 3px solid #3b5bdb; padding: .7rem .9rem; margin: 1.2rem 0; background: rgba(59,91,219,.07); border-radius: 0 4px 4px 0; }
+  footer { margin-top: 3rem; padding-top: 1.2rem; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: .9rem; }
+</style>
+</head>
+<body>
+
+<h1>Privacy Policy for Resko</h1>
+<p class="updated">Last updated: 27 September 2026</p>
+
+<p>Resko is an app for managing a residential society — sharing expenses, generating
+water and maintenance bills, tracking payments, and posting notices. It also includes
+a personal expense tracker that works on its own, without joining any society.</p>
+
+<p>This policy explains exactly what the app stores, why, and who can see it.</p>
+
+<h2>Who is responsible</h2>
+<p>Resko is operated by an individual developer. For any question about this policy or
+your data, contact <a href="mailto:vramchandu27@gmail.com">vramchandu27@gmail.com</a>.</p>
+
+<h2>What we collect</h2>
+
+<table>
+  <thead><tr><th>Data</th><th>Why</th></tr></thead>
+  <tbody>
+    <tr><td>Phone number</td><td>It is your identity in the app. Verified once by SMS code, and used by your society's admin to link you to your flat.</td></tr>
+    <tr><td>Name</td><td>Shown to your society's admin and on notices you post.</td></tr>
+    <tr><td>Flat number</td><td>Determines which bills and dues are yours.</td></tr>
+    <tr><td>Password</td><td>Optional, so you can sign in without an SMS code each time. Stored only as a cryptographic hash by Firebase Authentication — never in readable form.</td></tr>
+    <tr><td>Profile photo</td><td>Optional. Shown next to your name inside your society.</td></tr>
+    <tr><td>Payment screenshots</td><td>Uploaded by you to show a bill was paid, so your admin can confirm it.</td></tr>
+    <tr><td>Water meter photos</td><td>Uploaded by the admin as proof of the reading a bill was calculated from.</td></tr>
+    <tr><td>Bills, dues, expenses and readings</td><td>The shared financial records of your society.</td></tr>
+    <tr><td>Notices, issue reports and comments</td><td>Content you choose to post to your society.</td></tr>
+    <tr><td>Notification token</td><td>A device identifier from Firebase Cloud Messaging, so the app can notify you about a new bill or notice. Not linked to advertising.</td></tr>
+    <tr><td>Personal expenses, income and budgets</td><td>Only if you use the personal expense tracker. Amounts, categories, notes and dates you enter yourself.</td></tr>
+  </tbody>
+</table>
+
+<div class="box">
+  <strong>Your personal expense tracker is private to you.</strong> Nobody else can read
+  it — not your society's admin, not other residents. It is stored separately from all
+  society data and is never included in any shared view or report.
+</div>
+
+<h2>What we do not collect</h2>
+<ul>
+  <li>No location or GPS data.</li>
+  <li>No contacts, call logs or SMS messages.</li>
+  <li>No advertising identifiers, and no advertising or analytics SDKs.</li>
+  <li>No card numbers, bank details or payment credentials. Resko never processes a
+      payment. Payment happens outside the app through your own UPI app; Resko only
+      records that a screenshot was submitted and that the admin confirmed it.</li>
+</ul>
+
+<h2>Who can see your data</h2>
+<ul>
+  <li><strong>Your society's admin</strong> sees your name, flat number, phone number,
+      bills, dues and anything you post or upload to the society.</li>
+  <li><strong>Other residents of your society</strong> see notices and shared expense
+      records. They do not see your individual dues or payment screenshots.</li>
+  <li><strong>Other societies see nothing.</strong> Each society's data is isolated by
+      enforced server-side access rules; membership in one gives no access to any other.</li>
+  <li><strong>We do not sell your data, share it with advertisers, or transfer it to any
+      third party</strong> other than the infrastructure providers below.</li>
+</ul>
+
+<h2>Service providers</h2>
+<p>Resko runs on Google Firebase, which stores and processes data on our behalf:
+Firebase Authentication (phone and password sign-in), Cloud Firestore (app data),
+Firebase Storage (photos), and Firebase Cloud Messaging (notifications). Google Play
+services is used to verify that the app is genuine before an SMS code is sent. Their
+handling of data is governed by
+<a href="https://firebase.google.com/support/privacy">Firebase's privacy documentation</a>
+and <a href="https://policies.google.com/privacy">Google&rsquo;s Privacy Policy</a>.</p>
+
+<p>The app also loads its typefaces from <strong>Google Fonts</strong> the first time it runs. That request reaches Google&rsquo;s font servers and, like any web request, carries your device&rsquo;s IP address. No account information is sent with it.</p>
+
+<h2>When Resko opens another app</h2>
+<p>Some actions pass information to an app you already have installed. Sharing a bill or a notice opens <strong>WhatsApp</strong> with the message pre-filled; paying opens your <strong>UPI app</strong> with the amount and the society&rsquo;s UPI id; sending a reminder opens your <strong>SMS app</strong>. In each case you see the message and choose whether to send it, and what happens next is governed by that app&rsquo;s own privacy policy, not this one.</p>
+
+<h2>Where data is stored, and for how long</h2>
+<p>Data is stored on Google Cloud infrastructure and may be processed outside India.
+Society records are kept for as long as the society uses Resko, because they are shared
+accounting history. Your personal expense entries are kept until you delete them or ask
+for your account to be deleted.</p>
+
+<h2>Security</h2>
+<p>All traffic is encrypted in transit. Access is enforced by server-side security rules
+rather than only in the app, so a modified copy of the app cannot read another society's
+data. Passwords are stored only as salted hashes by Firebase Authentication.</p>
+
+<h2>Your rights</h2>
+<ul>
+  <li><strong>See your data</strong> — most of it is visible in the app; email us for the rest.</li>
+  <li><strong>Correct it</strong> — edit your name and photo in the app; ask your admin to correct flat details.</li>
+  <li><strong>Delete it</strong> — email <a href="mailto:vramchandu27@gmail.com">vramchandu27@gmail.com</a>
+      and we will delete your account, your profile, your uploads and your personal expense
+      records. Shared society accounting records that others rely on may be retained with
+      your name removed.</li>
+</ul>
+
+<h2>Children</h2>
+<p>Resko is intended for adults responsible for a household. It is not directed at
+children and we do not knowingly collect data from anyone under 13.</p>
+
+<h2>Changes</h2>
+<p>If this policy changes materially, the date above is updated and the change is
+announced in the app.</p>
+
+<footer>
+Resko · Contact: <a href="mailto:vramchandu27@gmail.com">vramchandu27@gmail.com</a>
+</footer>
+
+</body>
+</html>

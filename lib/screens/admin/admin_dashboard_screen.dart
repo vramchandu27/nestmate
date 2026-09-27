@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
@@ -24,6 +25,7 @@ import 'admin_profile_screen.dart';
 import 'join_association_screen.dart';
 import 'notifications_screen.dart';
 import 'transfer_admin_screen.dart';
+import 'work_list_screen.dart';
 
 /// Admin home: building overview, collection progress, and the nav tiles
 /// into every operational flow (expenses, water calc via expenses,
@@ -326,6 +328,31 @@ class AdminDashboardScreen extends StatelessWidget {
                                       _GlassPill(
                                         icon: Icons.qr_code_rounded,
                                         text: building.joinCode,
+                                        onTap: () async {
+                                          await Clipboard.setData(
+                                            ClipboardData(
+                                              text: building.joinCode,
+                                            ),
+                                          );
+                                          if (!context.mounted) return;
+                                          ScaffoldMessenger.of(
+                                            context,
+                                          ).showSnackBar(
+                                            SnackBar(
+                                              content: Text(
+                                                AppLocalizations.t(
+                                                  'joinCodeCopied',
+                                                ),
+                                              ),
+                                              behavior:
+                                                  SnackBarBehavior.floating,
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(10),
+                                              ),
+                                            ),
+                                          );
+                                        },
                                       ),
                                     _GlassPill(
                                       icon: Icons.trending_up_rounded,
@@ -396,6 +423,21 @@ class AdminDashboardScreen extends StatelessWidget {
                 ),
               ),
               NavListTile(
+                icon: Icons.savings_rounded,
+                title: AppLocalizations.t('reserveFundLabel'),
+                trailingText: formatPaise(society.building.reserveFundPaise),
+                iconBackground: AppTheme.primary,
+                iconColor: Colors.white,
+                // The Expenses screen already shows the full picture —
+                // the balance, every expense (with a badge for the ones
+                // paid from reserve), and the top-up action — rather than
+                // duplicating that as a second screen.
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ExpensesScreen()),
+                ),
+              ),
+              NavListTile(
                 icon: Icons.payment_rounded,
                 title: AppLocalizations.t('confirmPayments'),
                 badge: pendingConfirmCount > 0 ? '$pendingConfirmCount' : null,
@@ -429,6 +471,20 @@ class AdminDashboardScreen extends StatelessWidget {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(builder: (_) => const AddNoticeScreen()),
+                ),
+              ),
+              NavListTile(
+                icon: Icons.checklist_rounded,
+                title: AppLocalizations.t('workListTitle'),
+                badge: society.pendingWorkItemCount > 0
+                    ? '${society.pendingWorkItemCount}'
+                    : null,
+                iconBackground: AppTheme.primary,
+                iconColor: Colors.white,
+                badgeColor: AppTheme.primary,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const WorkListScreen()),
                 ),
               ),
               NavListTile(
@@ -539,6 +595,7 @@ class _GlassPill extends StatelessWidget {
     required this.icon,
     required this.text,
     this.animateIcon = false,
+    this.onTap,
   });
 
   final IconData icon;
@@ -548,12 +605,18 @@ class _GlassPill extends StatelessWidget {
   /// trending-up "collected" pill, not the QR-code one.
   final bool animateIcon;
 
+  /// When set, the pill becomes a real control and grows a trailing copy
+  /// affordance — without one the join code read as decoration, and admins
+  /// had no reason to think the thing they needed to send their residents
+  /// was sitting in it.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final pill = Container(
       padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.16),
+        color: Colors.white.withValues(alpha: onTap == null ? 0.16 : 0.24),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
@@ -571,7 +634,20 @@ class _GlassPill extends StatelessWidget {
               fontWeight: FontWeight.w700,
             ),
           ),
+          if (onTap != null) ...[
+            const SizedBox(width: 6),
+            const Icon(Icons.copy_rounded, color: Colors.white, size: 12),
+          ],
         ],
+      ),
+    );
+    if (onTap == null) return pill;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: pill,
       ),
     );
   }

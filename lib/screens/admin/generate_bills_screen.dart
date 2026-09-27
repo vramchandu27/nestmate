@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
 import '../../config/localization/app_localizations.dart';
-import '../../models/month_data.dart';
 import '../../providers/society_provider.dart';
 import '../../utils/group_summary.dart';
 import '../../utils/money.dart';
@@ -43,8 +42,6 @@ class GenerateBillsScreen extends StatelessWidget {
                 child: ListView(
                   padding: const EdgeInsets.all(20),
                   children: [
-                    _BillingMonthRow(society: society, month: month),
-                    const SizedBox(height: 16),
                     Row(
                       children: [
                         Expanded(
@@ -434,119 +431,3 @@ class _GroupSummaryCard extends StatelessWidget {
   }
 }
 
-class _BillingMonthRow extends StatelessWidget {
-  const _BillingMonthRow({required this.society, required this.month});
-
-  final SocietyProvider society;
-  final MonthData month;
-
-  Future<void> _pickMonth(BuildContext context) async {
-    final parts = month.id.split('-');
-    var selectedYear = int.tryParse(parts[0]) ?? DateTime.now().year;
-    var selectedMonth = int.tryParse(parts[1]) ?? DateTime.now().month;
-    final years = [
-      for (var y = selectedYear - 1; y <= selectedYear + 2; y++) y,
-    ];
-
-    final picked = await showDialog<(int, int)>(
-      context: context,
-      builder: (dialogContext) => StatefulBuilder(
-        builder: (dialogContext, setDialogState) => AlertDialog(
-          title: Text(AppLocalizations.t('selectBillingMonth')),
-          content: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  initialValue: selectedMonth,
-                  items: [
-                    for (var m = 1; m <= 12; m++)
-                      DropdownMenuItem(
-                        value: m,
-                        child: Text(SocietyProvider.monthNames[m - 1]),
-                      ),
-                  ],
-                  onChanged: (v) =>
-                      setDialogState(() => selectedMonth = v ?? selectedMonth),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: DropdownButtonFormField<int>(
-                  initialValue: selectedYear,
-                  items: [
-                    for (final y in years)
-                      DropdownMenuItem(value: y, child: Text('$y')),
-                  ],
-                  onChanged: (v) =>
-                      setDialogState(() => selectedYear = v ?? selectedYear),
-                ),
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: Text(AppLocalizations.t('cancel')),
-            ),
-            ElevatedButton(
-              onPressed: () => Navigator.pop(
-                dialogContext,
-                (selectedYear, selectedMonth),
-              ),
-              child: Text(AppLocalizations.t('save')),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (picked != null) {
-      await society.setCurrentMonth(picked.$1, picked.$2);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => _pickMonth(context),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-        decoration: BoxDecoration(
-          color: AppTheme.accentBlue,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Row(
-          children: [
-            const Icon(Icons.calendar_month_rounded, color: AppTheme.primary),
-            const SizedBox(width: 10),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    AppLocalizations.t('billingMonthLabel'),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      color: AppTheme.textMedium,
-                    ),
-                  ),
-                  Text(
-                    month.label,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w800,
-                      color: AppTheme.primary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const Icon(Icons.edit_rounded, color: AppTheme.primary, size: 18),
-          ],
-        ),
-      ),
-    );
-  }
-}

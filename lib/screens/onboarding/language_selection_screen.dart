@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/localization/app_localizations.dart';
 import '../../providers/app_provider.dart';
+import '../../widgets/app_icon_mark.dart';
 
 /// Language Selection Screen
 ///
@@ -48,32 +49,13 @@ class LanguageSelectionScreen extends StatelessWidget {
                     const SizedBox(height: 48),
 
                     // App Logo/Icon
-                    Container(
-                      width: 80,
-                      height: 80,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: AppTheme.primary.withValues(alpha: 0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: const Icon(
-                        Icons.apartment_rounded,
-                        color: AppTheme.primary,
-                        size: 40,
-                      ),
-                    ),
+                    const AppIconMark(),
 
                     const SizedBox(height: 32),
 
                     // Brand & Tagline
                     Text(
-                      'NestMate',
+                      'Resko',
                       style: theme.textTheme.displaySmall?.copyWith(
                         color: AppTheme.textDark,
                         fontWeight: FontWeight.w900,

@@ -16,8 +16,10 @@ import 'screens/onboarding/language_selection_screen.dart';
 import 'screens/onboarding/welcome_screen.dart';
 import 'screens/onboarding/login_screen.dart';
 import 'screens/onboarding/otp_screen.dart';
+import 'screens/onboarding/personal_login_screen.dart';
 import 'screens/onboarding/signup_screen.dart';
 import 'screens/onboarding/admin_signup_screen.dart';
+import 'screens/resident/personal_expenses_screen.dart';
 import 'screens/resident/resident_shell_screen.dart';
 import 'screens/resident/bill_breakdown_screen.dart';
 import 'screens/admin/admin_dashboard_screen.dart';
@@ -35,6 +37,7 @@ import 'screens/admin/issues_screen.dart';
 import 'screens/admin/add_notice_screen.dart';
 import 'screens/admin/transfer_admin_screen.dart';
 import 'screens/committee/committee_dashboard_screen.dart';
+import 'widgets/app_icon_mark.dart';
 
 final navigatorKey = GlobalKey<NavigatorState>();
 
@@ -88,9 +91,14 @@ class _AuthGateState extends State<_AuthGate> {
 
   @override
   Widget build(BuildContext context) {
+    // White background + the same AppIconMark shown on LanguageSelectionScreen
+    // (both native splash and this screen match), so pushReplacementNamed
+    // into '/language' triggers a Hero flight that carries the icon
+    // smoothly into its header position instead of a hard cut between two
+    // static screens.
     return const Scaffold(
-      backgroundColor: AppTheme.background,
-      body: Center(child: CircularProgressIndicator()),
+      backgroundColor: Colors.white,
+      body: Center(child: AppIconMark(size: 120, iconSize: 60)),
     );
   }
 }
@@ -160,7 +168,7 @@ class _NestMateAppState extends State<NestMateApp> with WidgetsBindingObserver {
       builder: (context, appProvider, _) {
         return MaterialApp(
           navigatorKey: navigatorKey,
-          title: 'NestMate',
+          title: 'Resko',
           theme: AppTheme.lightTheme(language: appProvider.language),
           locale: appProvider.locale,
           localizationsDelegates: const [
@@ -177,6 +185,9 @@ class _NestMateAppState extends State<NestMateApp> with WidgetsBindingObserver {
             '/welcome': (context) => const WelcomeScreen(),
             '/login': (context) => const LoginScreen(),
             '/otp': (context) => const OtpScreen(),
+            '/personal-login': (context) => const PersonalLoginScreen(),
+            '/personal-shell': (context) =>
+                const PersonalExpensesScreen(showLogout: true),
             '/signup': (context) => const SignupScreen(),
             '/admin-signup': (context) => const AdminSignupScreen(),
             '/resident-shell': (context) => const ResidentShellScreen(),

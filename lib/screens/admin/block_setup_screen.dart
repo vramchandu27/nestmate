@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
@@ -8,6 +9,7 @@ import '../../config/localization/app_localizations.dart';
 import '../../config/routing.dart';
 import '../../providers/society_provider.dart';
 import '../../services/storage_service.dart';
+import '../../utils/whatsapp.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/loading_overlay.dart';
 import '../../widgets/photo_picker_field.dart';
@@ -65,11 +67,41 @@ class _BlockSetupScreenState extends State<BlockSetupScreen> {
     super.dispose();
   }
 
+  /// Warns — never blocks — when a society by this name already exists, so
+  /// the second person from one building doesn't quietly create a duplicate
+  /// that splits their residents. Returns whether to go ahead with setup.
+  /// Only on first-time setup: re-editing your own society isn't a clash.
+  Future<bool> _confirmNotDuplicate(SocietyProvider society) async {
+    if (_wasAlreadySetUp) return true;
+    final exists = await society.societyNameExists(_nameCtrl.text.trim());
+    if (!exists || !mounted) return true;
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.t('duplicateSocietyTitle')),
+        content: Text(AppLocalizations.t('duplicateSocietyBody')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(AppLocalizations.t('goBack')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(AppLocalizations.t('createAnyway')),
+          ),
+        ],
+      ),
+    );
+    return proceed ?? false;
+  }
+
   Future<void> _submit() async {
     setState(() => _submitted = true);
     if (!_formKey.currentState!.validate()) return;
 
     final society = context.read<SocietyProvider>();
+    if (!await _confirmNotDuplicate(society)) return;
+    if (!mounted) return;
     setState(() => _isLoading = true);
     var photoFailed = false;
     await withLoadingOverlay(context, () async {
@@ -83,7 +115,7 @@ class _BlockSetupScreenState extends State<BlockSetupScreen> {
         // thing.
         try {
           finalPhotoUrl = await StorageService().uploadPhoto(
-            basePath: 'buildings/main/cover',
+            basePath: 'buildings/${society.buildingId}/cover',
             file: photo,
           );
           finalPhotoAdded = true;
@@ -127,8 +159,99 @@ class _BlockSetupScreenState extends State<BlockSetupScreen> {
     if (_wasAlreadySetUp) {
       Navigator.pop(context);
     } else {
+      // The join code is minted by completeBlockSetup, so this is the first
+      // moment it exists — and until now it was never shown here at all,
+      // leaving brand-new admins with no idea their residents needed a code
+      // or where to find it. Surface it before moving on.
+      await _showJoinCode(society.building.joinCode);
+      if (!mounted) return;
       Navigator.pushReplacementNamed(context, resolvePostAuthRoute(context));
     }
+  }
+
+  Future<void> _showJoinCode(String code) async {
+    if (code.isEmpty) return;
+    await showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.t('societyReadyTitle')),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              AppLocalizations.t('societyReadySub'),
+              style: const TextStyle(color: AppTheme.textMedium, height: 1.45),
+            ),
+            const SizedBox(height: 18),
+            InkWell(
+              borderRadius: BorderRadius.circular(12),
+              onTap: () => _copyCode(code),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  vertical: 14,
+                  horizontal: 16,
+                ),
+                decoration: BoxDecoration(
+                  color: AppTheme.accentBlue,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        code,
+                        style: const TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.primary,
+                          letterSpacing: 2,
+                        ),
+                      ),
+                    ),
+                    const Icon(
+                      Icons.copy_rounded,
+                      size: 20,
+                      color: AppTheme.primary,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () async {
+              await sendTextViaWhatsApp(
+                AppLocalizations.t(
+                  'joinCodeShareMessage',
+                ).replaceFirst('%s', code),
+              );
+            },
+            child: Text(AppLocalizations.t('shareWithResidents')),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AppLocalizations.t('done')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _copyCode(String code) async {
+    await Clipboard.setData(ClipboardData(text: code));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(AppLocalizations.t('joinCodeCopied')),
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      ),
+    );
   }
 
   @override

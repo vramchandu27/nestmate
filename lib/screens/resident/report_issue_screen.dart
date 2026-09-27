@@ -62,7 +62,8 @@ class _ReportIssueScreenState extends State<ReportIssueScreen> {
         final photo = _photoFile;
         if (photo != null) {
           photoUrl = await StorageService().uploadPhoto(
-            basePath: 'buildings/main/issues/${DateTime.now().microsecondsSinceEpoch}',
+            basePath:
+                'buildings/${society.buildingId}/issues/${DateTime.now().microsecondsSinceEpoch}',
             file: photo,
           );
         }

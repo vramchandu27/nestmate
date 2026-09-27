@@ -38,10 +38,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final Set<String> _specificFlats = {};
   bool _fronted = false;
   String? _frontingFlat;
+  bool _fundedByReserve = false;
   File? _receiptFile;
   String? _existingReceiptUrl;
   bool _isLoading = false;
   bool _submitted = false;
+  String? _reserveError;
 
   bool get _isEditing => widget.existing != null;
 
@@ -62,6 +64,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _specificFlats.addAll(existing.specificFlatNumbers);
     _fronted = existing.paidByFlatNumber != null;
     _frontingFlat = existing.paidByFlatNumber;
+    _fundedByReserve = existing.fundedByReserve;
     _existingReceiptUrl = existing.receiptPhotoUrl;
   }
 
@@ -74,7 +77,10 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   }
 
   Future<void> _save(SocietyProvider society) async {
-    setState(() => _submitted = true);
+    setState(() {
+      _submitted = true;
+      _reserveError = null;
+    });
     if (!_formKey.currentState!.validate()) return;
 
     final categories = society.building.commonCategories;
@@ -85,6 +91,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         widget.existing?.id ?? 'exp${DateTime.now().microsecondsSinceEpoch}';
     setState(() => _isLoading = true);
     var receiptFailed = false;
+    var saved = true;
     await withLoadingOverlay(context, () async {
       String? receiptUrl = _existingReceiptUrl;
       final receipt = _receiptFile;
@@ -94,7 +101,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         try {
           receiptUrl = await StorageService().uploadPhoto(
             basePath:
-                'buildings/main/months/${society.currentMonth.id}/expenses/$expenseId',
+                'buildings/${society.buildingId}/months/${society.currentMonth.id}/expenses/$expenseId',
             file: receipt,
           );
         } catch (_) {
@@ -108,18 +115,27 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         amountPaise: parseRupeesToPaise(_amountCtrl.text),
         splitRule: _splitRule,
         specificFlatNumbers: _specificFlats.toList(),
-        paidByFlatNumber: _fronted ? _frontingFlat : null,
+        paidByFlatNumber: _fundedByReserve
+            ? null
+            : (_fronted ? _frontingFlat : null),
+        fundedByReserve: _fundedByReserve,
         receiptPhotoUrl: receiptUrl,
         createdAt: widget.existing?.createdAt,
       );
-      if (_isEditing) {
-        await society.updateExpense(expense);
-      } else {
-        await society.addExpense(expense);
-      }
+      saved = _isEditing
+          ? await society.updateExpense(expense)
+          : await society.addExpense(expense);
     });
     if (!mounted) return;
     setState(() => _isLoading = false);
+    if (!saved) {
+      // Insufficient reserve balance — SocietyProvider refused to write
+      // anything, so stay on the form instead of popping as if it worked.
+      setState(
+        () => _reserveError = AppLocalizations.t('insufficientReserveError'),
+      );
+      return;
+    }
     if (receiptFailed) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -271,7 +287,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       ),
                       const SizedBox(height: 18),
                       Text(
-                        AppLocalizations.t('splitAcross'),
+                        AppLocalizations.t('howFundedLabel'),
                         style: const TextStyle(
                           fontWeight: FontWeight.w700,
                           fontSize: 13,
@@ -280,71 +296,41 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       ),
                       const SizedBox(height: 8),
                       _RadioTile(
-                        label: AppLocalizations.t('allFlatsOption'),
-                        selected: _splitRule == ExpenseSplitRule.allFlats,
-                        onTap: () => setState(
-                          () => _splitRule = ExpenseSplitRule.allFlats,
-                        ),
+                        label: AppLocalizations.t('splitAcrossResidentsOption'),
+                        selected: !_fundedByReserve,
+                        onTap: () => setState(() => _fundedByReserve = false),
                       ),
                       _RadioTile(
-                        label: AppLocalizations.t('specificFlatsOption'),
-                        selected: _splitRule == ExpenseSplitRule.specificFlats,
-                        onTap: () => setState(
-                          () => _splitRule = ExpenseSplitRule.specificFlats,
-                        ),
+                        label: AppLocalizations.t('payFromReserveOption'),
+                        selected: _fundedByReserve,
+                        onTap: () => setState(() => _fundedByReserve = true),
                       ),
-                      if (_splitRule == ExpenseSplitRule.specificFlats)
-                        Padding(
-                          padding: const EdgeInsets.only(
-                            left: 4,
-                            top: 4,
-                            bottom: 4,
-                          ),
-                          child: Wrap(
-                            spacing: 8,
-                            runSpacing: 4,
-                            children: [
-                              for (final f in flats)
-                                FilterChip(
-                                  label: Text(f.flatNumber),
-                                  selected: _specificFlats.contains(
-                                    f.flatNumber,
-                                  ),
-                                  onSelected: (sel) => setState(() {
-                                    if (sel) {
-                                      _specificFlats.add(f.flatNumber);
-                                    } else {
-                                      _specificFlats.remove(f.flatNumber);
-                                    }
-                                  }),
-                                ),
-                            ],
-                          ),
-                        ),
-                      const SizedBox(height: 18),
-                      Text(
-                        AppLocalizations.t('whoPaidThis'),
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w700,
-                          fontSize: 13,
-                          color: AppTheme.textMedium,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      _RadioTile(
-                        label: AppLocalizations.t('paidToCollector'),
-                        selected: !_fronted,
-                        onTap: () => setState(() => _fronted = false),
-                      ),
-                      _RadioTile(
-                        label: AppLocalizations.t('residentFrontedIt'),
-                        selected: _fronted,
-                        onTap: () => setState(() => _fronted = true),
-                      ),
-                      if (_fronted) ...[
+                      if (_fundedByReserve) ...[
                         const SizedBox(height: 4),
                         Text(
-                          AppLocalizations.t('whichFlatFronted'),
+                          '${AppLocalizations.t('reserveFundBalance')}: ${formatPaise(society.building.reserveFundPaise)}',
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textLight,
+                          ),
+                        ),
+                      ],
+                      if (_reserveError != null) ...[
+                        const SizedBox(height: 6),
+                        Text(
+                          _reserveError!,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: AppTheme.error,
+                          ),
+                        ),
+                      ],
+                      if (!_fundedByReserve) ...[
+                        const SizedBox(height: 18),
+                        Text(
+                          AppLocalizations.t('splitAcross'),
                           style: const TextStyle(
                             fontWeight: FontWeight.w700,
                             fontSize: 13,
@@ -352,23 +338,98 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        DropdownButtonFormField<String>(
-                          initialValue: _frontingFlat,
-                          items: flats
-                              .map(
-                                (f) => DropdownMenuItem(
-                                  value: f.flatNumber,
-                                  child: Text(
-                                    '${f.flatNumber} · ${f.residentName}',
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: (v) => setState(() => _frontingFlat = v),
-                          validator: (v) => v == null
-                              ? AppLocalizations.t('fieldRequired')
-                              : null,
+                        _RadioTile(
+                          label: AppLocalizations.t('allFlatsOption'),
+                          selected: _splitRule == ExpenseSplitRule.allFlats,
+                          onTap: () => setState(
+                            () => _splitRule = ExpenseSplitRule.allFlats,
+                          ),
                         ),
+                        _RadioTile(
+                          label: AppLocalizations.t('specificFlatsOption'),
+                          selected:
+                              _splitRule == ExpenseSplitRule.specificFlats,
+                          onTap: () => setState(
+                            () => _splitRule = ExpenseSplitRule.specificFlats,
+                          ),
+                        ),
+                        if (_splitRule == ExpenseSplitRule.specificFlats)
+                          Padding(
+                            padding: const EdgeInsets.only(
+                              left: 4,
+                              top: 4,
+                              bottom: 4,
+                            ),
+                            child: Wrap(
+                              spacing: 8,
+                              runSpacing: 4,
+                              children: [
+                                for (final f in flats)
+                                  FilterChip(
+                                    label: Text(f.flatNumber),
+                                    selected: _specificFlats.contains(
+                                      f.flatNumber,
+                                    ),
+                                    onSelected: (sel) => setState(() {
+                                      if (sel) {
+                                        _specificFlats.add(f.flatNumber);
+                                      } else {
+                                        _specificFlats.remove(f.flatNumber);
+                                      }
+                                    }),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        const SizedBox(height: 18),
+                        Text(
+                          AppLocalizations.t('whoPaidThis'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w700,
+                            fontSize: 13,
+                            color: AppTheme.textMedium,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        _RadioTile(
+                          label: AppLocalizations.t('paidToCollector'),
+                          selected: !_fronted,
+                          onTap: () => setState(() => _fronted = false),
+                        ),
+                        _RadioTile(
+                          label: AppLocalizations.t('residentFrontedIt'),
+                          selected: _fronted,
+                          onTap: () => setState(() => _fronted = true),
+                        ),
+                        if (_fronted) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            AppLocalizations.t('whichFlatFronted'),
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 13,
+                              color: AppTheme.textMedium,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          DropdownButtonFormField<String>(
+                            initialValue: _frontingFlat,
+                            items: flats
+                                .map(
+                                  (f) => DropdownMenuItem(
+                                    value: f.flatNumber,
+                                    child: Text(
+                                      '${f.flatNumber} · ${f.residentName}',
+                                    ),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: (v) => setState(() => _frontingFlat = v),
+                            validator: (v) => v == null
+                                ? AppLocalizations.t('fieldRequired')
+                                : null,
+                          ),
+                        ],
                       ],
                       const SizedBox(height: 18),
                       PhotoPickerField(

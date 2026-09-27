@@ -4,10 +4,11 @@ import '../../config/app_theme.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/resident_bottom_nav.dart';
 import 'community_screen.dart';
+import 'personal_expenses_screen.dart';
 import 'profile_screen.dart';
 import 'resident_home_screen.dart';
 
-/// The resident's bottom-nav shell: Building / Notices / Profile.
+/// The resident's bottom-nav shell: Building / Notices / My Expenses / Profile.
 class ResidentShellScreen extends StatefulWidget {
   const ResidentShellScreen({super.key});
 
@@ -18,7 +19,7 @@ class ResidentShellScreen extends StatefulWidget {
 class _ResidentShellScreenState extends State<ResidentShellScreen> {
   int _index = 0;
 
-  static const _profileIndex = 2;
+  static const _profileIndex = 3;
 
   @override
   Widget build(BuildContext context) {
@@ -27,6 +28,7 @@ class _ResidentShellScreenState extends State<ResidentShellScreen> {
         onOpenProfile: () => setState(() => _index = _profileIndex),
       ),
       const CommunityScreen(),
+      const PersonalExpensesScreen(),
       const ProfileScreen(),
     ];
 

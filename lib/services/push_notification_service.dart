@@ -5,6 +5,7 @@ import 'package:provider/provider.dart';
 
 import '../config/app_theme.dart';
 import '../providers/app_provider.dart';
+import '../providers/society_provider.dart';
 import '../screens/resident/community_screen.dart';
 import '../screens/resident/pay_now_screen.dart';
 
@@ -85,6 +86,11 @@ class PushNotificationService {
     final appProvider = context.read<AppProvider>();
     final isAdmin = appProvider.isAdmin;
     final flatNumber = appProvider.flatNumber;
+    // Which society's document this token belongs to — captured here for
+    // the same reason as the values above, since onTokenRefresh can fire
+    // long after this context is gone.
+    final buildingId = context.read<SocietyProvider>().buildingId;
+    if (buildingId == null) return;
 
     try {
       final settings = await _messaging.requestPermission();
@@ -92,12 +98,21 @@ class PushNotificationService {
 
       final token = await _messaging.getToken();
       if (token != null) {
-        await _writeToken(isAdmin: isAdmin, flatNumber: flatNumber, token: token);
+        await _writeToken(
+          buildingId: buildingId,
+          isAdmin: isAdmin,
+          flatNumber: flatNumber,
+          token: token,
+        );
       }
 
       _messaging.onTokenRefresh.listen(
-        (newToken) =>
-            _writeToken(isAdmin: isAdmin, flatNumber: flatNumber, token: newToken),
+        (newToken) => _writeToken(
+          buildingId: buildingId,
+          isAdmin: isAdmin,
+          flatNumber: flatNumber,
+          token: newToken,
+        ),
       );
     } catch (_) {
       // Push registration is best-effort — never block sign-in over it.
@@ -105,21 +120,22 @@ class PushNotificationService {
   }
 
   Future<void> _writeToken({
+    required String buildingId,
     required bool isAdmin,
     required String? flatNumber,
     required String token,
   }) async {
     if (isAdmin) {
-      await FirebaseFirestore.instance.collection('buildings').doc('main').set(
-        {'adminFcmToken': token},
-        SetOptions(merge: true),
-      );
+      await FirebaseFirestore.instance
+          .collection('buildings')
+          .doc(buildingId)
+          .set({'adminFcmToken': token}, SetOptions(merge: true));
       return;
     }
     if (flatNumber == null || flatNumber.isEmpty) return;
     await FirebaseFirestore.instance
         .collection('buildings')
-        .doc('main')
+        .doc(buildingId)
         .collection('flats')
         .doc(flatNumber)
         .set({'fcmToken': token}, SetOptions(merge: true));

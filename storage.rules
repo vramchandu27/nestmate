@@ -2,19 +2,41 @@ rules_version = '2';
 
 service firebase.storage {
   match /b/{bucket}/o {
-    // This app manages exactly one building (see SocietyProvider's schema
-    // note) — every signed-in user is by definition a member of it, so
-    // sign-in is the whole check, matching the equivalent Firestore rule's
-    // isMember() gate without needing a cross-service Firestore lookup here.
-    match /buildings/main/{allPaths=**} {
-      allow read, write: if request.auth != null;
+
+    function isSignedIn() {
+      return request.auth != null;
     }
 
-    // A user's own profile photo — private write, scoped to the owning
-    // uid, matching the equivalent Firestore rule for users/{uid}.
+    function phone() {
+      return request.auth.token.phone_number;
+    }
+
+    // Mirrors Firestore's isMember(). Storage rules can read Firestore
+    // directly, which is the only way to answer "is this caller actually in
+    // this society?" — and it has to be asked, because many societies now
+    // share this bucket. The previous rule accepted any signed-in user for
+    // a hardcoded `buildings/main`, which meant one verified phone number
+    // could read (and overwrite) every payment screenshot, meter photo and
+    // receipt in that society, and meant no other society could upload at
+    // all, since nothing matched their path.
+    function isMember(buildingId) {
+      return isSignedIn() && (
+        firestore.exists(/databases/(default)/documents/buildings/$(buildingId)/members/$(request.auth.uid))
+        || firestore.get(/databases/(default)/documents/buildings/$(buildingId)).data.adminPhone == phone()
+      );
+    }
+
+    // Cover photos, expense receipts, meter readings, payment screenshots
+    // and issue photos — all scoped to the society they belong to.
+    match /buildings/{buildingId}/{allPaths=**} {
+      allow read, write: if isMember(buildingId);
+    }
+
+    // A user's own profile photo. Nothing in the app resolves another
+    // user's photo through Storage — display uses the download URL saved on
+    // the Firestore user document — so owner-only access here costs nothing.
     match /users/{uid}/{allPaths=**} {
-      allow read: if request.auth != null;
-      allow write: if request.auth != null && request.auth.uid == uid;
+      allow read, write: if isSignedIn() && request.auth.uid == uid;
     }
   }
 }

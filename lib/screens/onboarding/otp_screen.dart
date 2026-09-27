@@ -187,12 +187,29 @@ class _OtpScreenState extends State<OtpScreen> {
         // A verified phone number with no matching flat/admin — never
         // fall through to some other flat's data. Undo the Firebase sign-in
         // so no dangling session is left behind, and surface a real error.
+        // An admin who simply hasn't created their society yet gets pointed
+        // at signup instead; resolve that before the sign-out clears what
+        // it reads (see adminSignInErrorKey).
+        final isAdmin = context.read<AppProvider>().userRole.isAdmin;
+        final errorKey = isAdmin
+            ? adminSignInErrorKey(context)
+            : 'phoneNotRegistered';
         await FirebaseAuth.instance.signOut();
-        errorMessage = AppLocalizations.t('phoneNotRegistered');
-        notRegistered = true;
+        errorMessage = AppLocalizations.t(errorKey);
+        // Only a resident's number gets cleared on the way back to login —
+        // an admin's number is correct, it's the society that's missing.
+        notRegistered = !isAdmin;
         return;
       }
-      Navigator.pushReplacementNamed(context, resolvePostAuthRoute(context));
+      // Clears the whole stack rather than just replacing this OTP screen:
+      // a plain pushReplacement leaves the login screen sitting underneath,
+      // so the Android back button from a signed-in dashboard lands the
+      // user back on the login form.
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        resolvePostAuthRoute(context),
+        (_) => false,
+      );
       await awaitRouteTransition();
     });
     if (!mounted) return;
@@ -243,7 +260,11 @@ class _OtpScreenState extends State<OtpScreen> {
           });
           return;
         }
-        Navigator.pushReplacementNamed(context, resolvePostAuthRoute(context));
+        Navigator.pushNamedAndRemoveUntil(
+          context,
+          resolvePostAuthRoute(context),
+          (_) => false,
+        );
     }
   }
 

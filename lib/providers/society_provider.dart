@@ -16,6 +16,7 @@ import '../models/flat.dart';
 import '../models/issue_report.dart';
 import '../models/month_data.dart';
 import '../models/water_month.dart';
+import '../models/work_item.dart';
 import '../utils/phone.dart';
 
 /// Owns the whole dataset for the single building this app manages: the
@@ -23,7 +24,7 @@ import '../utils/phone.dart';
 /// community feed, issue reports, and the current billing month (expenses,
 /// advances, water readings, generated bills).
 ///
-/// Backed by Firestore: `buildings/main` plus its `flats`, `issues`, `posts`,
+/// Backed by Firestore: `buildings/{buildingId}` plus its `flats`, `issues`, `posts`,
 /// and `months/{monthId}` subcollections (the last with its own `expenses`,
 /// `advances`, `readings`, `bills` subcollections — kept separate from the
 /// month doc so a resident's screenshot upload and an admin's confirm can
@@ -46,6 +47,7 @@ class SocietyProvider extends ChangeNotifier {
       _association = Association(),
       _posts = [],
       _issues = [],
+      _workItems = [],
       _currentMonth = MonthData(id: '', label: ''),
       _pastMonths = [] {
     _watchAuthState();
@@ -53,11 +55,15 @@ class SocietyProvider extends ChangeNotifier {
 
   SocietyProvider.mock()
     : _mock = true,
+      // Mock mode never touches Firestore, but screens still gate on
+      // hasBuilding, so give it the legacy id.
+      _buildingId = legacyBuildingId,
       _building = MockSeed.building(),
       _flats = MockSeed.flats(),
       _association = MockSeed.association(),
       _posts = MockSeed.communityPosts(),
       _issues = MockSeed.issues(),
+      _workItems = MockSeed.workItems(),
       _currentMonth = MockSeed.currentMonth(),
       _pastMonths = MockSeed.pastMonths();
 
@@ -69,18 +75,45 @@ class SocietyProvider extends ChangeNotifier {
   /// someone into an unrelated existing flat's real data.
   bool get isMock => _mock;
 
-  static const String _buildingDocId = 'main';
+  /// The one building that existed before this app supported more than a
+  /// single society. Used only as the migration fallback in
+  /// [_resolveBuildingIdForUser], for accounts created before
+  /// `users/{uid}.buildingId` started being written.
+  static const String legacyBuildingId = 'main';
+
+  /// Which society this signed-in user belongs to. Null until resolved
+  /// (and for a signed-out or personal-tracker-only user, who has no
+  /// building at all) — every Firestore path below hangs off it, so
+  /// listeners must not attach until it's known.
+  String? _buildingId;
+
+  /// The signed-in user's society, or null if they aren't in one.
+  String? get buildingId => _buildingId;
+
+  /// False for a signed-out user and for a personal-tracker-only user —
+  /// screens that read building data should not be reachable then.
+  bool get hasBuilding => _buildingId != null;
 
   FirebaseFirestore? _firestoreInstance;
   FirebaseFirestore get _firestore =>
       _firestoreInstance ??= FirebaseFirestore.instance;
 
-  DocumentReference<Map<String, dynamic>> get _buildingRef =>
-      _firestore.collection('buildings').doc(_buildingDocId);
+  DocumentReference<Map<String, dynamic>> get _buildingRef {
+    final id = _buildingId;
+    if (id == null) {
+      // Every caller below runs post-login, once a society is resolved.
+      // Failing loudly here beats silently reading or writing the wrong
+      // society's data.
+      throw StateError('No building attached: resolve a buildingId first.');
+    }
+    return _firestore.collection('buildings').doc(id);
+  }
   CollectionReference<Map<String, dynamic>> get _flatsRef =>
       _buildingRef.collection('flats');
   CollectionReference<Map<String, dynamic>> get _issuesRef =>
       _buildingRef.collection('issues');
+  CollectionReference<Map<String, dynamic>> get _workItemsRef =>
+      _buildingRef.collection('workItems');
   CollectionReference<Map<String, dynamic>> get _postsRef =>
       _buildingRef.collection('posts');
   CollectionReference<Map<String, dynamic>> get _monthsRef =>
@@ -114,19 +147,120 @@ class SocietyProvider extends ChangeNotifier {
   /// plain null-check would miss that switch and leave stale listeners
   /// running under a session that never got a fresh initial read.
   void _watchAuthState() {
-    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) {
+    _authSub = FirebaseAuth.instance.authStateChanges().listen((user) async {
       if (user != null && user.uid != _attachedUid) {
         _attachedUid = user.uid;
         _detachTopLevelListeners();
-        _attachTopLevelListeners();
+        // Which society this user belongs to has to be read before any
+        // listener can attach — every path hangs off the building id.
+        final resolved = await _resolveBuildingIdForUser(user);
+        // Another sign-in may have landed while that read was in flight
+        // (this app switches accounts without an intermediate sign-out);
+        // if so, that later callback owns the state now.
+        if (_attachedUid != user.uid) return;
+        _buildingId = null;
+        if (resolved != null) {
+          attachToBuilding(resolved);
+        } else {
+          notifyListeners();
+        }
       } else if (user == null && _attachedUid != null) {
         _attachedUid = null;
+        _buildingId = null;
         _detachTopLevelListeners();
       }
     });
   }
 
+  /// Works out which society a signed-in user belongs to:
+  /// 1. `users/{uid}.buildingId` — written when they join, the normal case.
+  /// 2. A building whose `adminPhone` is theirs — covers an admin whose
+  ///    account predates that field being written.
+  /// 3. [legacyBuildingId] — the migration fallback for residents who
+  ///    signed up before this app supported multiple societies, but ONLY
+  ///    for someone who is genuinely in it (see [_belongsToLegacyBuilding]).
+  ///
+  /// Returns null for a phone that belongs to no society yet — a brand-new
+  /// admin who hasn't created one, or a personal-tracker user. That null
+  /// matters: this step used to fall back to [legacyBuildingId]
+  /// unconditionally, which meant every unrecognized phone in the world
+  /// resolved to that one society. A new admin was then told it "already
+  /// has an admin" (it does — someone else's), and a new resident would
+  /// have been pointed at a building they have nothing to do with.
+  Future<String?> _resolveBuildingIdForUser(User user) async {
+    try {
+      final userDoc = await _firestore
+          .collection('users')
+          .doc(user.uid)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      final recorded = userDoc.data()?['buildingId'] as String?;
+      if (recorded != null && recorded.isNotEmpty) return recorded;
+
+      final phone = user.phoneNumber;
+      if (phone != null && phone.isNotEmpty) {
+        final owned = await _firestore
+            .collection('buildings')
+            .where('adminPhone', isEqualTo: toE164Phone(phone))
+            .limit(1)
+            .get()
+            .timeout(const Duration(seconds: 8));
+        if (owned.docs.isNotEmpty) {
+          final id = owned.docs.first.id;
+          await rememberBuildingForCurrentUser(id);
+          return id;
+        }
+      }
+
+      if (await _belongsToLegacyBuilding(user)) {
+        await rememberBuildingForCurrentUser(legacyBuildingId);
+        return legacyBuildingId;
+      }
+    } catch (e) {
+      debugPrint('SocietyProvider._resolveBuildingIdForUser: $e');
+    }
+    return null;
+  }
+
+  /// Whether [user] is really in the pre-multi-society building — either
+  /// already enrolled there, or holding one of its flats by phone. Both
+  /// reads are ones the security rules allow a non-member to make about
+  /// themselves specifically (`members/{own uid}`, and flats filtered to
+  /// their own phone), so this stays safe for a stranger to call: for
+  /// someone from another apartment both simply come back empty.
+  Future<bool> _belongsToLegacyBuilding(User user) async {
+    final legacy = _firestore.collection('buildings').doc(legacyBuildingId);
+    final member = await legacy
+        .collection('members')
+        .doc(user.uid)
+        .get()
+        .timeout(const Duration(seconds: 8));
+    if (member.exists) return true;
+
+    final phone = user.phoneNumber;
+    if (phone == null || phone.isEmpty) return false;
+    final flats = await legacy
+        .collection('flats')
+        .where('phone', isEqualTo: toE164Phone(phone))
+        .limit(1)
+        .get()
+        .timeout(const Duration(seconds: 8));
+    return flats.docs.isNotEmpty;
+  }
+
+  /// Caches which society this user belongs to, so later logins resolve in
+  /// a single read instead of re-deriving it (and so a resident never has
+  /// to enter their join code again).
+  Future<void> rememberBuildingForCurrentUser(String buildingId) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _mock) return;
+    await _firestore.collection('users').doc(uid).set({
+      'buildingId': buildingId,
+    }, SetOptions(merge: true));
+  }
+
   void _detachTopLevelListeners() {
+    _listenersAttached = false;
     for (final s in _subs) {
       s.cancel();
     }
@@ -140,6 +274,7 @@ class SocietyProvider extends ChangeNotifier {
     _association = Association();
     _posts = [];
     _issues = [];
+    _workItems = [];
     _currentMonth = MonthData(id: '', label: '');
     _pastMonths = [];
     notifyListeners();
@@ -159,6 +294,16 @@ class SocietyProvider extends ChangeNotifier {
         if (newBuilding.currentMonthId.isNotEmpty &&
             newBuilding.currentMonthId != oldMonthId) {
           _attachMonthListeners(newBuilding.currentMonthId);
+        }
+        // Deliberately not gated on the month actually having changed —
+        // relying on an in-memory equality check against whatever
+        // happened to be cached at that exact instant is fragile (a
+        // missed or reordered snapshot, e.g. from Firestore's offline
+        // cache delivering stale data first, silently leaves this stale
+        // forever with no way to recover). Re-running this on every
+        // building update is a handful of extra reads at this scale, and
+        // guarantees "earlier months" can never get stuck out of date.
+        if (newBuilding.currentMonthId.isNotEmpty) {
           _refreshPastMonths();
         }
         notifyListeners();
@@ -183,6 +328,13 @@ class SocietyProvider extends ChangeNotifier {
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         notifyListeners();
       }, onError: (Object e) => debugPrint('SocietyProvider posts listener: $e')),
+    );
+    _subs.add(
+      _workItemsRef.snapshots().listen((snap) {
+        _workItems = snap.docs.map((d) => WorkItem.fromMap(d.data())).toList()
+          ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+        notifyListeners();
+      }, onError: (Object e) => debugPrint('SocietyProvider work items listener: $e')),
     );
   }
 
@@ -294,17 +446,38 @@ class SocietyProvider extends ChangeNotifier {
       for (final doc in snap.docs) {
         if (doc.id == _currentMonth.id) continue;
         final month = MonthData.fromMap(doc.data());
-        final billsSnap = await doc.reference
-            .collection('bills')
-            .get()
-            .timeout(const Duration(seconds: 8));
-        month.bills = billsSnap.docs.map((b) => Bill.fromMap(b.data())).toList();
+        month.bills = await _fetchPastMonthBills(doc.reference);
         result.add(month);
       }
       _pastMonths = result;
       notifyListeners();
     } catch (e) {
       debugPrint('SocietyProvider _refreshPastMonths: $e');
+    }
+  }
+
+  /// Mirrors [_attachBillsListener]'s admin/resident fallback: the security
+  /// rules only let a resident read their *own* bill doc, not the whole
+  /// `bills` subcollection, so this unfiltered collection read can't be
+  /// proven safe for a resident and Firestore denies it outright (even
+  /// though one of the 15 docs is theirs). Without this fallback, that
+  /// denial was silently swallowed by the caller's try/catch, leaving a
+  /// resident's "earlier months" permanently empty.
+  Future<List<Bill>> _fetchPastMonthBills(
+    DocumentReference<Map<String, dynamic>> monthRef,
+  ) async {
+    try {
+      final billsSnap = await monthRef
+          .collection('bills')
+          .get()
+          .timeout(const Duration(seconds: 8));
+      return billsSnap.docs.map((b) => Bill.fromMap(b.data())).toList();
+    } catch (e) {
+      final myFlat = _myFlatNumber;
+      if (myFlat == null) return [];
+      final doc = await monthRef.collection('bills').doc(myFlat).get();
+      final data = doc.data();
+      return data != null ? [Bill.fromMap(data)] : [];
     }
   }
 
@@ -325,6 +498,7 @@ class SocietyProvider extends ChangeNotifier {
   Association _association;
   List<CommunityPost> _posts;
   List<IssueReport> _issues;
+  List<WorkItem> _workItems;
   MonthData _currentMonth;
   List<MonthData> _pastMonths;
 
@@ -334,6 +508,8 @@ class SocietyProvider extends ChangeNotifier {
   Association get association => _association;
   List<CommunityPost> get posts => List.unmodifiable(_posts);
   List<IssueReport> get issues => List.unmodifiable(_issues);
+  List<WorkItem> get workItems => List.unmodifiable(_workItems);
+  int get pendingWorkItemCount => _workItems.where((w) => !w.isDone).length;
   MonthData get currentMonth => _currentMonth;
   List<MonthData> get pastMonths => List.unmodifiable(_pastMonths);
 
@@ -491,6 +667,144 @@ class SocietyProvider extends ChangeNotifier {
   int get paidFlatCount =>
       _currentMonth.bills.where((b) => b.status == BillStatus.confirmed).length;
 
+  // ── Multi-society: create, find, join ────────────────────────────────
+
+  /// Points this provider at [buildingId] and starts listening to it —
+  /// called once a society is resolved (login) or created/joined (signup).
+  /// Whether [_attachTopLevelListeners] is currently running for
+  /// [_buildingId] — signup resolves a society *before* the user is signed
+  /// in (to validate a join code without sending an SMS first), and every
+  /// read needs auth, so pointing at a society and listening to it are two
+  /// separate steps.
+  bool _listenersAttached = false;
+
+  void attachToBuilding(String buildingId) {
+    if (_buildingId == buildingId && _listenersAttached) return;
+    _detachTopLevelListeners();
+    _listenersAttached = false;
+    _buildingId = buildingId;
+    if (!_mock && FirebaseAuth.instance.currentUser != null) {
+      _attachTopLevelListeners();
+      _listenersAttached = true;
+    }
+    notifyListeners();
+  }
+
+  /// Resolves and attaches this user's society if it isn't already, and
+  /// returns its id. [_watchAuthState] does the same thing on its own, but
+  /// asynchronously — sign-in runs immediately after `signInWithCredential`
+  /// and needs the society *now*, so it awaits this rather than racing that
+  /// listener. Safe to call repeatedly; it's a no-op once attached.
+  Future<String?> ensureBuildingAttached() async {
+    // Mock mode has no Firebase app at all — touching FirebaseAuth here
+    // throws [core/no-app] and takes the widget tests down with it.
+    if (_mock) return _buildingId;
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) return _buildingId;
+    // Already pointed at a society (e.g. signup resolved it from a join
+    // code before sign-in) — just start listening now that auth exists.
+    final known = _buildingId;
+    if (known != null) {
+      if (!_listenersAttached) attachToBuilding(known);
+      return known;
+    }
+    final resolved = await _resolveBuildingIdForUser(user);
+    if (resolved != null) attachToBuilding(resolved);
+    return resolved;
+  }
+
+  /// Creates a brand-new society owned by [adminPhone] and attaches to it.
+  /// The name, UPI id and join code are filled in afterwards by
+  /// [completeBlockSetup] — this just establishes the document and its
+  /// admin so the rest of setup has somewhere to write.
+  ///
+  /// Returns the new building's id.
+  Future<String> createBuildingForAdmin(String adminPhone) async {
+    final e164 = toE164Phone(adminPhone.trim());
+    if (_mock) {
+      _building.adminPhone = e164;
+      notifyListeners();
+      return legacyBuildingId;
+    }
+    // Re-running signup (or signing up on a second device) must not mint a
+    // duplicate society — if this phone already owns one, reuse it.
+    final existing = await _firestore
+        .collection('buildings')
+        .where('adminPhone', isEqualTo: e164)
+        .limit(1)
+        .get();
+    if (existing.docs.isNotEmpty) {
+      final id = existing.docs.first.id;
+      attachToBuilding(id);
+      await rememberBuildingForCurrentUser(id);
+      return id;
+    }
+    final ref = _firestore.collection('buildings').doc();
+    await ref.set({
+      'name': '',
+      'adminPhone': e164,
+      'setupComplete': false,
+      'createdAt': DateTime.now().millisecondsSinceEpoch,
+    });
+    attachToBuilding(ref.id);
+    await rememberBuildingForCurrentUser(ref.id);
+    return ref.id;
+  }
+
+  /// Resolves a resident-facing join code to the society it belongs to, or
+  /// null if no society uses that code. Reads a small `joinCodes/{code}`
+  /// lookup document rather than querying every building, so a resident
+  /// never needs read access to societies they don't belong to.
+  Future<String?> findBuildingIdByJoinCode(String code) async {
+    final normalized = code.trim().toUpperCase();
+    if (normalized.isEmpty) return null;
+    if (_mock) {
+      return _building.joinCode.toUpperCase() == normalized
+          ? legacyBuildingId
+          : null;
+    }
+    try {
+      final doc = await _firestore
+          .collection('joinCodes')
+          .doc(normalized)
+          .get()
+          .timeout(const Duration(seconds: 8));
+      return doc.data()?['buildingId'] as String?;
+    } catch (e) {
+      debugPrint('SocietyProvider.findBuildingIdByJoinCode: $e');
+      return null;
+    }
+  }
+
+  /// Records this user as a member of [buildingId]. This document is what
+  /// the security rules check — without it a resident can't read their own
+  /// society's data, so it's written on join *and* refreshed on every
+  /// login (cheap, and it backfills accounts created before this existed).
+  Future<void> recordMembership({
+    required String buildingId,
+    required String flatNumber,
+    required String phone,
+  }) async {
+    final uid = FirebaseAuth.instance.currentUser?.uid;
+    if (uid == null || _mock) return;
+    try {
+      await _firestore
+          .collection('buildings')
+          .doc(buildingId)
+          .collection('members')
+          .doc(uid)
+          .set({
+            'flatNumber': flatNumber,
+            'phone': toE164Phone(phone),
+            'joinedAt': DateTime.now().millisecondsSinceEpoch,
+          }, SetOptions(merge: true));
+    } catch (e) {
+      // Never block a login on this — the rules stay permissive until
+      // every existing user has one (see the two-step rollout).
+      debugPrint('SocietyProvider.recordMembership: $e');
+    }
+  }
+
   // ── Mutations: setup ─────────────────────────────────────────────────
   Future<void> completeBlockSetup({
     required String name,
@@ -552,6 +866,74 @@ class SocietyProvider extends ChangeNotifier {
         'id': currentMonthId,
         'label': currentMonthLabel,
       }, SetOptions(merge: true));
+    }
+    // Publish the code → society lookup the moment a fresh code is minted,
+    // so residents can join with it. Skipped on an edit, where the code is
+    // carried over unchanged and its lookup already exists.
+    if (!wasAlreadySetUp && updated.joinCode.isNotEmpty) {
+      await _firestore
+          .collection('joinCodes')
+          .doc(updated.joinCode.toUpperCase())
+          .set({'buildingId': _buildingRef.id});
+    }
+    if (!wasAlreadySetUp) {
+      await _claimSocietyName(name);
+    }
+  }
+
+  /// Normalized key for the society-name index: case and punctuation vary
+  /// wildly between two people typing the same building's name ("Green
+  /// Valley", "green valley apartments", "GreenValley"), so only letters
+  /// and digits survive.
+  static String _societyNameKey(String name) =>
+      name.toUpperCase().replaceAll(RegExp(r'[^A-Z0-9]'), '');
+
+  /// Whether some society already goes by [name].
+  ///
+  /// This exists for one failure mode: hand a building's WhatsApp group a
+  /// Play Store link and two helpful people both tap "Create Account",
+  /// ending up with two half-populated societies for one apartment and
+  /// residents split across them. Nothing can tell two societies apart by
+  /// name alone — two real buildings genuinely share names — so this only
+  /// ever warns, never blocks.
+  ///
+  /// A miss (offline, permission, anything) answers false: a warning that
+  /// can't be shown must not stop someone from creating their society.
+  Future<bool> societyNameExists(String name) async {
+    final key = _societyNameKey(name);
+    if (key.isEmpty || _mock) return false;
+    try {
+      final doc = await _firestore
+          .collection('societyNames')
+          .doc(key)
+          .get()
+          .timeout(const Duration(seconds: 6));
+      // A society re-running its own setup isn't a duplicate of itself.
+      return doc.exists && doc.data()?['buildingId'] != _buildingId;
+    } catch (e) {
+      debugPrint('SocietyProvider.societyNameExists: $e');
+      return false;
+    }
+  }
+
+  /// Records this society in the name index so the next person typing the
+  /// same name gets warned. Only the first claimant is stored — the index
+  /// answers "does this name exist?", not "which societies use it" — so a
+  /// later collision simply leaves the existing entry alone.
+  Future<void> _claimSocietyName(String name) async {
+    final key = _societyNameKey(name);
+    if (key.isEmpty) return;
+    try {
+      final ref = _firestore.collection('societyNames').doc(key);
+      if ((await ref.get().timeout(const Duration(seconds: 6))).exists) return;
+      await ref.set({
+        'buildingId': _buildingRef.id,
+        'name': name,
+      }).timeout(const Duration(seconds: 6));
+    } catch (e) {
+      // Indexing is a convenience for the *next* admin; never fail this
+      // admin's setup over it.
+      debugPrint('SocietyProvider._claimSocietyName: $e');
     }
   }
 
@@ -716,6 +1098,13 @@ class SocietyProvider extends ChangeNotifier {
       return _normalizedPhone(_building.adminPhone) == _normalizedPhone(e164Phone);
     }
 
+    // No society resolved for this phone at all, so there is no seat to
+    // claim or confirm. This is a brand-new admin who hasn't created their
+    // society yet — they belong in admin signup, not here. Callers
+    // distinguish this from "someone else holds the seat" by checking
+    // [hasBuilding], so they can say which of the two actually happened.
+    if (_buildingId == null) return false;
+
     Map<String, dynamic>? data;
     try {
       data = (await _buildingRef
@@ -822,32 +1211,91 @@ class SocietyProvider extends ChangeNotifier {
   }
 
   // ── Mutations: expenses & advances ──────────────────────────────────
-  Future<void> addExpense(Expense expense) async {
+
+  /// How much [expense] currently draws from the reserve fund — 0 unless
+  /// it's actually marked [Expense.fundedByReserve]. Used to work out the
+  /// net change to [Building.reserveFundPaise] on add/edit/delete, since an
+  /// edit can flip an expense in or out of reserve funding, not just
+  /// change its amount.
+  int _reserveContributionOf(Expense? expense) =>
+      (expense != null && expense.fundedByReserve) ? expense.amountPaise : 0;
+
+  /// Shared add/update path — the only difference between creating a new
+  /// expense and editing one is what [previous] contributed to the reserve
+  /// fund (0 for a brand-new expense). Returns false, writing nothing, if
+  /// this would draw the reserve fund below zero — spending must never
+  /// silently go negative the way [topUpReserveFund] cannot fail.
+  Future<bool> _saveExpense(Expense expense, {Expense? previous}) async {
+    final delta = _reserveContributionOf(expense) - _reserveContributionOf(previous);
+    if (delta > 0 && delta > _building.reserveFundPaise) return false;
+
     if (_mock) {
-      _currentMonth.expenses.add(expense);
+      _building.reserveFundPaise -= delta;
+      if (previous == null) {
+        _currentMonth.expenses.add(expense);
+      } else {
+        final idx = _currentMonth.expenses.indexWhere((e) => e.id == expense.id);
+        if (idx != -1) _currentMonth.expenses[idx] = expense;
+      }
       notifyListeners();
-      return;
+      return true;
     }
-    await _expensesRef.doc(expense.id).set(expense.toMap());
+
+    final batch = _firestore.batch();
+    batch.set(_expensesRef.doc(expense.id), expense.toMap());
+    if (delta != 0) {
+      batch.set(_buildingRef, {
+        'reserveFundPaise': _building.reserveFundPaise - delta,
+      }, SetOptions(merge: true));
+    }
+    await batch.commit();
+    return true;
   }
 
-  Future<void> updateExpense(Expense expense) async {
-    if (_mock) {
-      final idx = _currentMonth.expenses.indexWhere((e) => e.id == expense.id);
-      if (idx != -1) _currentMonth.expenses[idx] = expense;
-      notifyListeners();
-      return;
-    }
-    await _expensesRef.doc(expense.id).set(expense.toMap());
+  Future<bool> addExpense(Expense expense) => _saveExpense(expense);
+
+  Future<bool> updateExpense(Expense expense) {
+    final previous = _currentMonth.expenses
+        .where((e) => e.id == expense.id)
+        .firstOrNull;
+    return _saveExpense(expense, previous: previous);
   }
 
   Future<void> deleteExpense(String expenseId) async {
+    final existing = _currentMonth.expenses
+        .where((e) => e.id == expenseId)
+        .firstOrNull;
+    final refund = _reserveContributionOf(existing);
+
     if (_mock) {
+      _building.reserveFundPaise += refund;
       _currentMonth.expenses.removeWhere((e) => e.id == expenseId);
       notifyListeners();
       return;
     }
-    await _expensesRef.doc(expenseId).delete();
+
+    final batch = _firestore.batch();
+    batch.delete(_expensesRef.doc(expenseId));
+    if (refund != 0) {
+      batch.set(_buildingRef, {
+        'reserveFundPaise': _building.reserveFundPaise + refund,
+      }, SetOptions(merge: true));
+    }
+    await batch.commit();
+  }
+
+  /// Records money collected from residents beyond this month's costs —
+  /// always additive to whatever balance remains, never a replace. Unlike
+  /// spending, a top-up can't fail, so there's nothing to validate.
+  Future<void> topUpReserveFund(int amountPaise) async {
+    if (_mock) {
+      _building.reserveFundPaise += amountPaise;
+      notifyListeners();
+      return;
+    }
+    await _buildingRef.set({
+      'reserveFundPaise': _building.reserveFundPaise + amountPaise,
+    }, SetOptions(merge: true));
   }
 
   /// Recording an advance applies each recovery straight to the named
@@ -901,12 +1349,14 @@ class SocietyProvider extends ChangeNotifier {
     String flatNumber, {
     int? initialLitres,
     int? finalLitres,
+    String? meterPhotoUrl,
   }) async {
     var reading = _currentMonth.readingFor(flatNumber);
     final isNew = reading == null;
     reading ??= MeterReading(flatNumber: flatNumber);
     if (initialLitres != null) reading.initialLitres = initialLitres;
     if (finalLitres != null) reading.finalLitres = finalLitres;
+    if (meterPhotoUrl != null) reading.meterPhotoUrl = meterPhotoUrl;
     if (_mock) {
       if (isNew) _currentMonth.readings.add(reading);
       notifyListeners();
@@ -925,18 +1375,56 @@ class SocietyProvider extends ChangeNotifier {
   Future<void> setCurrentMonth(int year, int month) async {
     final id = '$year-${month.toString().padLeft(2, '0')}';
     final label = '${monthNames[month - 1]} $year';
+
+    // Water meters are cumulative, not reset each month — last month's
+    // final reading is next month's real starting point, so carry it
+    // forward automatically instead of making the admin retype it. Only
+    // seeds a flat that doesn't already have a reading recorded for the
+    // target month, so re-selecting an already-in-progress month (this can
+    // be changed at any time, per the doc above) never clobbers real data.
+    final previousFinals = {
+      for (final r in _currentMonth.readings) r.flatNumber: r.finalLitres,
+    };
+
     if (_mock) {
       _currentMonth.id = id;
       _currentMonth.label = label;
+      for (final flat in _flats) {
+        final already = _currentMonth.readings.any(
+          (r) => r.flatNumber == flat.flatNumber,
+        );
+        if (already) continue;
+        final carried = previousFinals[flat.flatNumber] ?? 0;
+        if (carried <= 0) continue;
+        _currentMonth.readings.add(
+          MeterReading(flatNumber: flat.flatNumber, initialLitres: carried),
+        );
+      }
       notifyListeners();
       return;
     }
+
+    final targetReadingsRef = _monthsRef.doc(id).collection('readings');
+    final existingSnap = await targetReadingsRef.get();
+    final alreadySeeded = existingSnap.docs.map((d) => d.id).toSet();
+
     // The building-doc listener reacts to currentMonthId changing and
     // (re)attaches the month-level listeners itself — no need to do it here.
-    await _monthsRef.doc(id).set({
+    final batch = _firestore.batch();
+    batch.set(_monthsRef.doc(id), {
       'id': id,
       'label': label,
     }, SetOptions(merge: true));
+    for (final flat in _flats) {
+      if (alreadySeeded.contains(flat.flatNumber)) continue;
+      final carried = previousFinals[flat.flatNumber] ?? 0;
+      if (carried <= 0) continue;
+      batch.set(
+        targetReadingsRef.doc(flat.flatNumber),
+        MeterReading(flatNumber: flat.flatNumber, initialLitres: carried).toMap(),
+      );
+    }
+    await batch.commit();
     await _buildingRef.set({'currentMonthId': id}, SetOptions(merge: true));
   }
 
@@ -1096,6 +1584,52 @@ class SocietyProvider extends ChangeNotifier {
       return;
     }
     await _issuesRef.doc(id).update({'status': IssueStatus.resolved.name});
+  }
+
+  // ── Mutations: work list ─────────────────────────────────────────────
+  /// The admin's own private checklist — never shown to residents.
+  Future<void> addWorkItem({
+    required String title,
+    String description = '',
+  }) async {
+    final item = WorkItem(
+      id: 'work${DateTime.now().microsecondsSinceEpoch}',
+      title: title,
+      description: description,
+    );
+    if (_mock) {
+      _workItems.insert(0, item);
+      notifyListeners();
+      return;
+    }
+    await _workItemsRef.doc(item.id).set(item.toMap());
+  }
+
+  Future<void> toggleWorkItem(String id) async {
+    final item = _workItems.where((w) => w.id == id).firstOrNull;
+    if (item == null) return;
+    final isDone = !item.isDone;
+    final completedAt = isDone ? DateTime.now() : null;
+
+    if (_mock) {
+      item.isDone = isDone;
+      item.completedAt = completedAt;
+      notifyListeners();
+      return;
+    }
+    await _workItemsRef.doc(id).update({
+      'isDone': isDone,
+      'completedAt': completedAt?.millisecondsSinceEpoch,
+    });
+  }
+
+  Future<void> deleteWorkItem(String id) async {
+    if (_mock) {
+      _workItems.removeWhere((w) => w.id == id);
+      notifyListeners();
+      return;
+    }
+    await _workItemsRef.doc(id).delete();
   }
 
   // ── Mutations: community ─────────────────────────────────────────────

@@ -15,14 +15,20 @@ service cloud.firestore {
       return request.auth.token.phone_number;
     }
 
-    // This app manages exactly one building total (see SocietyProvider's
-    // schema note) — there is no other building to accidentally leak data
-    // to, so "signed in" already means "member of the only building that
-    // exists." Deliberately does NOT depend on a users/{uid} profile doc,
-    // since the app never writes one (kept as a genuinely optional,
-    // unused-for-now collection below).
+    // Now that many societies share this database, "signed in" is no
+    // longer the same thing as "belongs to this building" — membership has
+    // to be checked per building. Rules can't run queries, only fetch a
+    // known path, which is exactly why a members/{uid} document exists:
+    // it's the one cheap, exact answer to "is this caller in this society?"
+    //
+    // The app writes that document on every login (see
+    // SocietyProvider.recordMembership), so accounts predating it heal
+    // themselves the first time their owner signs in.
     function isMember(buildingId) {
-      return isSignedIn();
+      return isSignedIn() && (
+        isBuildingAdmin(buildingId) ||
+        exists(/databases/$(database)/documents/buildings/$(buildingId)/members/$(request.auth.uid))
+      );
     }
 
     function building(buildingId) {
@@ -63,15 +69,61 @@ service cloud.firestore {
         allow read, create, update, delete:
           if isSignedIn() && request.auth.uid == uid;
       }
+
+      // One doc per category (doc id = category name) holding that
+      // category's self-set monthly spending limit — same per-user
+      // privacy as personalExpenses above.
+      match /personalBudgets/{category} {
+        allow read, create, update, delete:
+          if isSignedIn() && request.auth.uid == uid;
+      }
+    }
+
+    // Maps a resident-facing join code to the society it belongs to, and
+    // nothing else. Kept as its own collection precisely so a resident can
+    // resolve a code they were given without being able to read building
+    // documents (which hold admin phone numbers) for societies they don't
+    // belong to. Codes are minted by an admin at setup and never reused.
+    match /joinCodes/{code} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    // Society display names, keyed by a normalized form of the name, used
+    // only to warn a second admin that a society by that name already
+    // exists before they create a duplicate for the same building. Holds a
+    // name and a building id and nothing else — no phone numbers, no
+    // financials — and is readable only by exact key, so it answers "does
+    // this name exist?" for a name you already had, and can't be listed to
+    // enumerate societies. Entries are never rewritten: the first claimant
+    // stays, which is all a yes/no warning needs.
+    match /societyNames/{nameKey} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn();
+      allow update, delete: if false;
     }
 
     match /buildings/{buildingId} {
-      // Building basics (name/joinCode/etc.) are readable pre-membership so
-      // a new admin/resident can look one up while signing up.
-      allow read: if isSignedIn();
+      // Only members (and the admin) can read a society now — this used to
+      // be any signed-in user, which meant one verified phone number could
+      // read every society's flats, bills and notices.
+      //
+      // The second clause exists for exactly one query: "does my phone
+      // already own a society?", which admin signup and society resolution
+      // both run before any membership exists. isMember can't authorize
+      // that one — it resolves the admin seat with a get() on the building
+      // being read, and a collection query has no single buildingId to
+      // resolve, so Firestore rejects the query outright rather than
+      // returning nothing. Matching resource.data directly lets it prove
+      // the query is safe whenever it's filtered to adminPhone == the
+      // caller's own verified number, which is all it can ever return.
+      allow read: if isMember(buildingId)
+        || (isSignedIn() && resource.data.adminPhone == phone());
 
-      // First admin creates their own building, self-assigning as admin
-      // via their own verified phone.
+      // Any signed-in user can create their *own* society, self-assigning
+      // as its admin via their own verified phone. They get an empty
+      // building; this grants nothing over anyone else's.
       allow create: if isSignedIn() && request.resource.data.adminPhone == phone();
 
       // Only the bound admin can update building fields (including handing
@@ -79,8 +131,29 @@ service cloud.firestore {
       allow update: if isBuildingAdmin(buildingId);
       allow delete: if false;
 
+      // Proof of membership, keyed by uid so the rules above can check it
+      // with a single exists(). A resident enrolls themselves, but only
+      // against a flat whose stored phone is already theirs — the same
+      // check claimFlatForSignup does client-side.
+      match /members/{uid} {
+        allow read: if isSignedIn() && request.auth.uid == uid;
+        allow create, update: if isSignedIn()
+          && request.auth.uid == uid
+          && (
+            isBuildingAdmin(buildingId)
+            || flat(buildingId, request.resource.data.flatNumber).phone == phone()
+          );
+        // An admin can remove someone who has left; a resident can remove
+        // themselves. Neither can enroll anybody else.
+        allow delete: if isBuildingAdmin(buildingId)
+          || (isSignedIn() && request.auth.uid == uid);
+      }
+
       match /flats/{flatNumber} {
-        allow read: if isMember(buildingId);
+        // A resident joining has to read their own flat to validate before
+        // they're a member — allowed, but strictly their own flat.
+        allow read: if isMember(buildingId)
+          || (isSignedIn() && resource.data.phone == phone());
         allow create: if isBuildingAdmin(buildingId);
         allow delete: if isBuildingAdmin(buildingId);
 
@@ -103,12 +176,24 @@ service cloud.firestore {
           || ownsFlat(buildingId, resource.data.flatNumber);
       }
 
+      // The admin's own private checklist — unlike issues/posts, never
+      // readable by a resident at all.
+      match /workItems/{workItemId} {
+        allow read, write: if isBuildingAdmin(buildingId);
+      }
+
       match /posts/{postId} {
         // Only the admin creates/deletes notices; any building member can
         // update (likes/comments are embedded, bounded fields).
         allow read: if isMember(buildingId);
         allow create, delete: if isBuildingAdmin(buildingId);
-        allow update: if isMember(buildingId);
+        // A member may react and comment, but the notice itself belongs
+        // to the admin who wrote it — previously any member could rewrite
+        // a notice's title and body, since 'update' was unrestricted.
+        allow update: if isBuildingAdmin(buildingId)
+          || (isMember(buildingId)
+              && request.resource.data.diff(resource.data).affectedKeys()
+                   .hasOnly(['likeCount', 'comments']));
       }
 
       match /months/{monthId} {

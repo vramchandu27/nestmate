@@ -49,3 +49,7 @@ flutter_*.log
 
 # Internal Claude Code session tooling — not project source
 .claude/
+
+# Gradle build output - the root /build/ rule above does not reach these
+/android/build/
+/android/.gradle/

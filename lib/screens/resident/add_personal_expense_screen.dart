@@ -11,11 +11,16 @@ import '../../widgets/ambient_background.dart';
 import '../../widgets/loading_overlay.dart';
 import '../../widgets/screen_header.dart';
 
-/// Add one personal expense — name, category, amount, date. Deliberately
-/// simpler than the admin's AddExpenseScreen: no split rule, no flats, no
-/// receipt photo, since none of that applies to a resident's own spending.
+/// Add (or edit) one personal expense — name, category, amount, date.
+/// Deliberately simpler than the admin's AddExpenseScreen: no split rule,
+/// no flats, no receipt photo, since none of that applies to a resident's
+/// own spending.
 class AddPersonalExpenseScreen extends StatefulWidget {
-  const AddPersonalExpenseScreen({super.key});
+  const AddPersonalExpenseScreen({super.key, this.existing});
+
+  /// Non-null when reopening this form to edit an already-recorded
+  /// expense, rather than creating a new one.
+  final PersonalExpense? existing;
 
   @override
   State<AddPersonalExpenseScreen> createState() =>
@@ -26,10 +31,24 @@ class _AddPersonalExpenseScreenState extends State<AddPersonalExpenseScreen> {
   final _nameCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
-  String _category = personalExpenseCategories.first;
-  DateTime _date = DateTime.now();
+  late String _category;
+  late DateTime _date;
   bool _isLoading = false;
   bool _submitted = false;
+
+  bool get _isEditing => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existing;
+    _category = existing?.category ?? personalExpenseCategories.first;
+    _date = existing?.date ?? DateTime.now();
+    if (existing != null) {
+      _nameCtrl.text = existing.name;
+      _amountCtrl.text = (existing.amountPaise ~/ 100).toString();
+    }
+  }
 
   @override
   void dispose() {
@@ -58,16 +77,18 @@ class _AddPersonalExpenseScreenState extends State<AddPersonalExpenseScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() => _isLoading = true);
+    final provider = context.read<PersonalExpenseProvider>();
+    final expense = PersonalExpense(
+      id: widget.existing?.id ?? 'pexp${DateTime.now().microsecondsSinceEpoch}',
+      name: _nameCtrl.text.trim(),
+      category: _category,
+      amountPaise: parseRupeesToPaise(_amountCtrl.text),
+      date: _date,
+    );
     await withLoadingOverlay(context, () {
-      return context.read<PersonalExpenseProvider>().addExpense(
-        PersonalExpense(
-          id: 'pexp${DateTime.now().microsecondsSinceEpoch}',
-          name: _nameCtrl.text.trim(),
-          category: _category,
-          amountPaise: parseRupeesToPaise(_amountCtrl.text),
-          date: _date,
-        ),
-      );
+      return _isEditing
+          ? provider.updateExpense(expense)
+          : provider.addExpense(expense);
     });
     if (!mounted) return;
     setState(() => _isLoading = false);
@@ -82,7 +103,11 @@ class _AddPersonalExpenseScreenState extends State<AddPersonalExpenseScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              ScreenHeader(title: AppLocalizations.t('addPersonalExpense')),
+              ScreenHeader(
+                title: AppLocalizations.t(
+                  _isEditing ? 'editPersonalExpense' : 'addPersonalExpense',
+                ),
+              ),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(20),

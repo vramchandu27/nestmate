@@ -60,15 +60,11 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
     if (!_formKey.currentState!.validate()) return;
 
     final phone = _phoneController.text.trim();
-
-    // Only one admin can exist per building — reject if someone else
-    // already holds the seat. See SocietyProvider.canSignInAsAdmin.
-    if (!context.read<SocietyProvider>().canSignInAsAdmin(phone)) {
-      setState(() => _phoneError = AppLocalizations.t('adminAlreadyExists'));
-      _formKey.currentState!.validate();
-      return;
-    }
-
+    // No "is the admin seat free" check any more: signing up here creates
+    // this admin's *own* society, so there's no shared seat to contend
+    // for. Signing up twice with the same number reuses the society they
+    // already own rather than minting a duplicate (see
+    // SocietyProvider.createBuildingForAdmin).
     final name = _nameController.text.trim();
 
     setState(() => _isLoading = true);
@@ -127,6 +123,9 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
     final society = ctx.read<SocietyProvider>();
     bool isRealAdmin;
     try {
+      // Creates this admin's own society (or reattaches to the one they
+      // already own) and makes them its admin.
+      await society.createBuildingForAdmin(phone);
       isRealAdmin = await society.claimAdminIfUnbound(phone);
     } catch (_) {
       // A failed write here (e.g. a Firestore rules rejection) must not
@@ -192,7 +191,13 @@ class _AdminSignupScreenState extends State<AdminSignupScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
-    Navigator.pushReplacementNamed(ctx, resolvePostAuthRoute(ctx));
+    // Clears the stack — signup/OTP screens must not stay behind a
+    // signed-in dashboard for the back button to return to.
+    Navigator.pushNamedAndRemoveUntil(
+      ctx,
+      resolvePostAuthRoute(ctx),
+      (_) => false,
+    );
     await awaitRouteTransition();
   }
 

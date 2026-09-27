@@ -15,6 +15,7 @@ import '../../utils/money.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/app_card.dart';
 import '../../widgets/empty_state.dart';
+import '../../widgets/full_screen_network_photo.dart';
 import '../../widgets/photo_picker_field.dart';
 import '../../widgets/screen_header.dart';
 
@@ -39,7 +40,7 @@ class _PayNowScreenState extends State<PayNowScreen> {
     try {
       final url = await StorageService().uploadPhoto(
         basePath:
-            'buildings/main/months/${society.currentMonth.id}/bills/$flatNumber',
+            'buildings/${society.buildingId}/months/${society.currentMonth.id}/bills/$flatNumber',
         file: f,
       );
       await society.submitPaymentScreenshot(flatNumber, screenshotUrl: url);
@@ -91,6 +92,35 @@ class _PayNowScreenState extends State<PayNowScreen> {
                     icon: Icons.hourglass_empty_rounded,
                     title: AppLocalizations.t('billNotReadyTitle'),
                     subtitle: AppLocalizations.t('billNotReadySub'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    // A flat that fronted more than its own share owes nothing and is
+    // instead owed money — there's no in-app payout flow, and launching a
+    // UPI payment for a negative amount makes no sense, so this screen has
+    // nothing useful to offer beyond pointing them to the admin directly.
+    // (bill_breakdown_screen.dart's own "Pay Now" button can reach this
+    // screen regardless of amount, so this has to be guarded here too, not
+    // just at the home dashboard's card.)
+    if (bill.status != BillStatus.confirmed && bill.amountDuePaise < 0) {
+      return Scaffold(
+        backgroundColor: AppTheme.background,
+        body: AmbientBackground(
+          child: SafeArea(
+            child: Column(
+              children: [
+                ScreenHeader(title: AppLocalizations.t('pay')),
+                Expanded(
+                  child: EmptyState(
+                    icon: Icons.info_outline_rounded,
+                    title: formatPaise(-bill.amountDuePaise),
+                    subtitle: AppLocalizations.t('creditContactAdminMessage'),
                   ),
                 ),
               ],
@@ -228,47 +258,80 @@ class _PayNowScreenState extends State<PayNowScreen> {
                       showStaticConfirmation
                           // Already submitted in a previous visit — there's
                           // no picked File to preview (nothing persists
-                          // across sessions), so show a static confirmation
-                          // instead of the interactive picker's empty state.
+                          // across sessions), so show the actual uploaded
+                          // photo (tap to view full-screen) instead of the
+                          // interactive picker's empty state.
                           ? Column(
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.all(26),
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.sageBg,
-                                    borderRadius: BorderRadius.circular(18),
-                                  ),
-                                  child: Column(
-                                    children: [
-                                      const Icon(
-                                        Icons.check_circle_rounded,
-                                        size: 32,
-                                        color: AppTheme.success,
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        AppLocalizations.t(
-                                          'screenshotUploaded',
-                                        ),
-                                        style: const TextStyle(
-                                          fontWeight: FontWeight.w700,
-                                          color: AppTheme.textMedium,
-                                        ),
-                                      ),
-                                    ],
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: GestureDetector(
+                                    onTap: bill.paymentScreenshotUrl == null
+                                        ? null
+                                        : () => Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  FullScreenNetworkPhoto(
+                                                    url: bill
+                                                        .paymentScreenshotUrl!,
+                                                  ),
+                                            ),
+                                          ),
+                                    child: Container(
+                                      height: 220,
+                                      width: double.infinity,
+                                      color: AppTheme.cardBackground,
+                                      child:
+                                          bill.paymentScreenshotUrl == null
+                                          ? const Center(
+                                              child: Icon(
+                                                Icons.check_circle_rounded,
+                                                size: 36,
+                                                color: AppTheme.success,
+                                              ),
+                                            )
+                                          : Image.network(
+                                              bill.paymentScreenshotUrl!,
+                                              fit: BoxFit.cover,
+                                              loadingBuilder:
+                                                  (context, child, progress) {
+                                                    if (progress == null) {
+                                                      return child;
+                                                    }
+                                                    return const Center(
+                                                      child:
+                                                          CircularProgressIndicator(
+                                                            strokeWidth: 2,
+                                                          ),
+                                                    );
+                                                  },
+                                              errorBuilder:
+                                                  (context, error, stack) =>
+                                                      const Center(
+                                                        child: Icon(
+                                                          Icons
+                                                              .broken_image_outlined,
+                                                          color: AppTheme
+                                                              .textLight,
+                                                          size: 28,
+                                                        ),
+                                                      ),
+                                            ),
+                                    ),
                                   ),
                                 ),
                                 // Once the admin confirms the payment it's
                                 // settled — no more replacing the screenshot
                                 // after that.
                                 if (bill.status != BillStatus.confirmed) ...[
-                                  const SizedBox(height: 10),
-                                  TextButton.icon(
+                                  const SizedBox(height: 12),
+                                  OutlinedButton.icon(
                                     onPressed: () =>
                                         setState(() => _replacing = true),
                                     icon: const Icon(
                                       Icons.refresh_rounded,
-                                      size: 18,
+                                      size: 16,
                                     ),
                                     label: Text(
                                       AppLocalizations.t(
@@ -287,17 +350,7 @@ class _PayNowScreenState extends State<PayNowScreen> {
                                   _onScreenshotChanged(f, flatNumber),
                             ),
                       const SizedBox(height: 18),
-                      Text(
-                        hasSubmitted
-                            ? AppLocalizations.t('paymentConfirmed')
-                            : AppLocalizations.t('notPaidYet'),
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: AppTheme.textLight,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
+                      Center(child: _PaymentStatusRow(status: bill.status)),
                     ],
                   ),
                 ),
@@ -305,6 +358,64 @@ class _PayNowScreenState extends State<PayNowScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// The bottom status line — deliberately keyed off [bill.status] itself
+/// rather than "a screenshot exists", so it never claims "Payment
+/// Confirmed" the moment a screenshot is uploaded when the admin hasn't
+/// actually confirmed it yet.
+class _PaymentStatusRow extends StatelessWidget {
+  const _PaymentStatusRow({required this.status});
+
+  final BillStatus status;
+
+  @override
+  Widget build(BuildContext context) {
+    final (icon, color, background, label) = switch (status) {
+      BillStatus.confirmed => (
+        Icons.check_circle_rounded,
+        AppTheme.sageDark,
+        AppTheme.sageBg,
+        AppLocalizations.t('paymentConfirmed'),
+      ),
+      BillStatus.screenshotUploaded => (
+        Icons.hourglass_bottom_rounded,
+        AppTheme.amber,
+        AppTheme.amberBg,
+        AppLocalizations.t('awaitingConfirmationLabel'),
+      ),
+      BillStatus.unpaid => (
+        Icons.schedule_rounded,
+        AppTheme.textLight,
+        AppTheme.cardBackground,
+        AppLocalizations.t('notPaidYet'),
+      ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: color),
+          const SizedBox(width: 7),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 13,
+            ),
+          ),
+        ],
       ),
     );
   }

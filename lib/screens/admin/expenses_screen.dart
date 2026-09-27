@@ -4,6 +4,7 @@ import 'package:provider/provider.dart';
 import '../../config/app_theme.dart';
 import '../../config/localization/app_localizations.dart';
 import '../../models/expense.dart';
+import '../../models/month_data.dart';
 import '../../providers/society_provider.dart';
 import '../../utils/money.dart';
 import '../../widgets/app_card.dart';
@@ -12,6 +13,7 @@ import '../../widgets/nav_list_tile.dart';
 import '../../widgets/screen_header.dart';
 import 'add_advance_screen.dart';
 import 'add_expense_screen.dart';
+import 'add_reserve_fund_screen.dart';
 import 'generate_bills_screen.dart';
 import 'water_calculator_screen.dart';
 
@@ -64,6 +66,8 @@ class ExpensesScreen extends StatelessWidget {
                   child: ListView(
                     padding: const EdgeInsets.all(20),
                     children: [
+                      _BillingMonthRow(society: society, month: month),
+                      const SizedBox(height: 14),
                       // Always visible — adding an advance shouldn't
                       // require adding an expense first just to reach it.
                       Row(
@@ -107,6 +111,19 @@ class ExpensesScreen extends StatelessWidget {
                           context,
                           MaterialPageRoute(
                             builder: (_) => const WaterCalculatorScreen(),
+                          ),
+                        ),
+                      ),
+                      NavListTile(
+                        icon: Icons.savings_rounded,
+                        title: AppLocalizations.t('reserveFundLabel'),
+                        trailingText: formatPaise(
+                          society.building.reserveFundPaise,
+                        ),
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const AddReserveFundScreen(),
                           ),
                         ),
                       ),
@@ -162,15 +179,44 @@ class ExpensesScreen extends StatelessWidget {
                                       ],
                                     ),
                                     const SizedBox(height: 4),
-                                    Text(
-                                      e.splitRule == ExpenseSplitRule.allFlats
-                                          ? AppLocalizations.t('allFlatsOption')
-                                          : '${e.specificFlatNumbers.length} flats',
-                                      style: const TextStyle(
-                                        fontSize: 12,
-                                        color: AppTheme.textLight,
+                                    if (e.fundedByReserve)
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: 9,
+                                          vertical: 3,
+                                        ),
+                                        decoration: BoxDecoration(
+                                          color: AppTheme.amber.withValues(
+                                            alpha: 0.18,
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            999,
+                                          ),
+                                        ),
+                                        child: Text(
+                                          AppLocalizations.t(
+                                            'paidFromReserveBadge',
+                                          ),
+                                          style: const TextStyle(
+                                            fontSize: 10.5,
+                                            fontWeight: FontWeight.w800,
+                                            color: Color(0xFF8A6D00),
+                                          ),
+                                        ),
+                                      )
+                                    else
+                                      Text(
+                                        e.splitRule ==
+                                                ExpenseSplitRule.allFlats
+                                            ? AppLocalizations.t(
+                                                'allFlatsOption',
+                                              )
+                                            : '${e.specificFlatNumbers.length} flats',
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          color: AppTheme.textLight,
+                                        ),
                                       ),
-                                    ),
                                     if (e.paidByFlatNumber != null) ...[
                                       const SizedBox(height: 6),
                                       Container(
@@ -340,6 +386,127 @@ class _ActionCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Which month you're currently recording expenses/readings for — moved
+/// here from the Generate Bills screen, since switching to a new month is
+/// naturally something you do right when you start entering that month's
+/// data, not something you'd go looking for on the "send bills" screen.
+class _BillingMonthRow extends StatelessWidget {
+  const _BillingMonthRow({required this.society, required this.month});
+
+  final SocietyProvider society;
+  final MonthData month;
+
+  Future<void> _pickMonth(BuildContext context) async {
+    final parts = month.id.split('-');
+    var selectedYear = int.tryParse(parts[0]) ?? DateTime.now().year;
+    var selectedMonth = int.tryParse(parts[1]) ?? DateTime.now().month;
+    final years = [
+      for (var y = selectedYear - 1; y <= selectedYear + 2; y++) y,
+    ];
+
+    final picked = await showDialog<(int, int)>(
+      context: context,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) => AlertDialog(
+          title: Text(AppLocalizations.t('selectBillingMonth')),
+          content: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  initialValue: selectedMonth,
+                  items: [
+                    for (var m = 1; m <= 12; m++)
+                      DropdownMenuItem(
+                        value: m,
+                        child: Text(SocietyProvider.monthNames[m - 1]),
+                      ),
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => selectedMonth = v ?? selectedMonth),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: DropdownButtonFormField<int>(
+                  initialValue: selectedYear,
+                  items: [
+                    for (final y in years)
+                      DropdownMenuItem(value: y, child: Text('$y')),
+                  ],
+                  onChanged: (v) =>
+                      setDialogState(() => selectedYear = v ?? selectedYear),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: Text(AppLocalizations.t('cancel')),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(
+                dialogContext,
+                (selectedYear, selectedMonth),
+              ),
+              child: Text(AppLocalizations.t('save')),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (picked != null) {
+      await society.setCurrentMonth(picked.$1, picked.$2);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _pickMonth(context),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: AppTheme.accentBlue,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.calendar_month_rounded, color: AppTheme.primary),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    AppLocalizations.t('billingMonthLabel'),
+                    style: const TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.textMedium,
+                    ),
+                  ),
+                  Text(
+                    month.label,
+                    style: const TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.edit_rounded, color: AppTheme.primary, size: 18),
+          ],
         ),
       ),
     );
