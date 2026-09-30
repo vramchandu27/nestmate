@@ -182,6 +182,15 @@ service cloud.firestore {
         allow read, write: if isBuildingAdmin(buildingId);
       }
 
+      // Who has paid into the reserve fund. Readable by every member on
+      // purpose: the reserve is residents' own money, and being able to
+      // see the contributions behind the balance is the point of keeping
+      // them. Only the admin, who does the collecting, can record them.
+      match /reserveContributions/{contributionId} {
+        allow read: if isMember(buildingId);
+        allow write: if isBuildingAdmin(buildingId);
+      }
+
       match /posts/{postId} {
         // Only the admin creates/deletes notices; any building member can
         // update (likes/comments are embedded, bounded fields).

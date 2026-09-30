@@ -8,7 +8,12 @@ void main() {
     expect(society.building.reserveFundPaise, 0);
 
     // Top up ₹5,000/flat × 15 flats = ₹75,000.
-    await society.topUpReserveFund(500000 * 15);
+    // Recorded per flat now, which is also what makes the contribution
+    // records below meaningful.
+    await society.addReserveContributions(
+      flatNumbers: society.flats.map((f) => f.flatNumber).toList(),
+      perFlatPaise: 500000,
+    );
     expect(society.building.reserveFundPaise, 7500000);
 
     final commonPoolBefore = society.currentMonth.commonPoolPaise;

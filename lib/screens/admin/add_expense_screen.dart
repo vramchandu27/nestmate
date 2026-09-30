@@ -32,6 +32,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   final _nameCtrl = TextEditingController();
   final _amountCtrl = TextEditingController();
   final _otherCategoryCtrl = TextEditingController();
+  final _reasonCtrl = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   String? _category;
   ExpenseSplitRule _splitRule = ExpenseSplitRule.allFlats;
@@ -45,7 +46,68 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
   bool _submitted = false;
   String? _reserveError;
 
+  /// The day the money went out. Defaults to today, which is right for the
+  /// common case of recording an expense as it happens, but editable for
+  /// the equally common one of catching up on a bill paid last week.
+  DateTime _spentOn = DateTime.now();
+
   bool get _isEditing => widget.existing != null;
+
+  static const _monthNames = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
+
+  String _formatSpentOn(DateTime d) =>
+      '${d.day} ${_monthNames[d.month - 1]} ${d.year}';
+
+  /// Appends this edit to the expense's history, or leaves it untouched.
+  ///
+  /// Only the two figures a resident is paying against — the name and the
+  /// amount — count as a change worth recording. Fixing a typo in the
+  /// category or swapping a receipt photo doesn't alter what anyone owes,
+  /// and logging those would bury the changes that do matter.
+  List<ExpenseChange> _changeHistoryFor({
+    required Expense? previous,
+    required String newName,
+    required int newAmountPaise,
+  }) {
+    if (previous == null) return const [];
+    final changed =
+        previous.name != newName || previous.amountPaise != newAmountPaise;
+    if (!changed) return previous.changes;
+    return [
+      ...previous.changes,
+      ExpenseChange(
+        changedAt: DateTime.now(),
+        reason: _reasonCtrl.text.trim(),
+        previousName: previous.name,
+        previousAmountPaise: previous.amountPaise,
+      ),
+    ];
+  }
+
+  /// Whether the admin has altered a figure residents are paying against,
+  /// which is what makes the reason field appear and become required.
+  bool get _needsReason {
+    final previous = widget.existing;
+    if (previous == null) return false;
+    return previous.name != _nameCtrl.text.trim() ||
+        previous.amountPaise != parseRupeesToPaise(_amountCtrl.text);
+  }
+
+  Future<void> _pickSpentOn() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _spentOn,
+      // A society records what it has already spent, so a future date is
+      // almost always a typo; two years back covers correcting old books.
+      firstDate: DateTime(now.year - 2),
+      lastDate: now,
+    );
+    if (picked != null && mounted) setState(() => _spentOn = picked);
+  }
 
   @override
   void initState() {
@@ -58,6 +120,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
 
     _nameCtrl.text = existing.name;
     _amountCtrl.text = (existing.amountPaise ~/ 100).toString();
+    _spentOn = existing.spentOn;
     _category = isCustomCategory ? 'Other' : existing.category;
     if (isCustomCategory) _otherCategoryCtrl.text = existing.category;
     _splitRule = existing.splitRule;
@@ -73,6 +136,7 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
     _nameCtrl.dispose();
     _amountCtrl.dispose();
     _otherCategoryCtrl.dispose();
+    _reasonCtrl.dispose();
     super.dispose();
   }
 
@@ -121,6 +185,12 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         fundedByReserve: _fundedByReserve,
         receiptPhotoUrl: receiptUrl,
         createdAt: widget.existing?.createdAt,
+        spentOn: _spentOn,
+        changes: _changeHistoryFor(
+          previous: widget.existing,
+          newName: _nameCtrl.text.trim(),
+          newAmountPaise: parseRupeesToPaise(_amountCtrl.text),
+        ),
       );
       saved = _isEditing
           ? await society.updateExpense(expense)
@@ -228,6 +298,9 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         controller: _nameCtrl,
                         enabled: !_isLoading,
                         textCapitalization: TextCapitalization.words,
+                        // Rebuilds so the reason field appears the moment a
+                        // recorded figure is altered, rather than only on save.
+                        onChanged: (_) => setState(() {}),
                         validator: (v) => (v == null || v.trim().isEmpty)
                             ? AppLocalizations.t('fieldRequired')
                             : null,
@@ -284,6 +357,95 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                         validator: (v) => parseRupeesToPaise(v ?? '') > 0
                             ? null
                             : AppLocalizations.t('enterValidAmount'),
+                      ),
+                      // Only on an edit that actually moves a figure, so a
+                      // brand-new expense is never asked to justify itself.
+                      if (_needsReason) ...[
+                        const SizedBox(height: 16),
+                        Container(
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: AppTheme.amber.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: AppTheme.amber.withValues(alpha: 0.4),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                AppLocalizations.t('changeReasonLabel'),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 13,
+                                  color: Color(0xFF8A6D00),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                AppLocalizations.t('changeReasonHint'),
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppTheme.textMedium,
+                                  height: 1.35,
+                                ),
+                              ),
+                              const SizedBox(height: 10),
+                              TextFormField(
+                                controller: _reasonCtrl,
+                                enabled: !_isLoading,
+                                maxLines: 2,
+                                textCapitalization:
+                                    TextCapitalization.sentences,
+                                validator: (v) =>
+                                    (v ?? '').trim().length >= 4
+                                    ? null
+                                    : AppLocalizations.t('changeReasonRequired'),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 16),
+                      Text(
+                        AppLocalizations.t('expenseDateLabel'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w700,
+                          fontSize: 13,
+                          color: AppTheme.textMedium,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      InkWell(
+                        borderRadius: BorderRadius.circular(12),
+                        onTap: _isLoading ? null : _pickSpentOn,
+                        child: InputDecorator(
+                          decoration: const InputDecoration(),
+                          child: Row(
+                            children: [
+                              const Icon(
+                                Icons.event_rounded,
+                                size: 18,
+                                color: AppTheme.textMedium,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  _formatSpentOn(_spentOn),
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ),
+                              const Icon(
+                                Icons.arrow_drop_down_rounded,
+                                color: AppTheme.textMedium,
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 18),
                       Text(

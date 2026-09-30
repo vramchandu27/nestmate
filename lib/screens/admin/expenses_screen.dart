@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
@@ -206,12 +207,8 @@ class ExpensesScreen extends StatelessWidget {
                                       )
                                     else
                                       Text(
-                                        e.splitRule ==
-                                                ExpenseSplitRule.allFlats
-                                            ? AppLocalizations.t(
-                                                'allFlatsOption',
-                                              )
-                                            : '${e.specificFlatNumbers.length} flats',
+                                        '${e.splitRule == ExpenseSplitRule.allFlats ? AppLocalizations.t('allFlatsOption') : '${e.specificFlatNumbers.length} flats'}'
+                                        ' · ${DateFormat('d MMM').format(e.spentOn)}',
                                         style: const TextStyle(
                                           fontSize: 12,
                                           color: AppTheme.textLight,

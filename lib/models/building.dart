@@ -79,7 +79,7 @@ class Building {
 
   /// Money collected from residents beyond what's needed for the current
   /// month's costs, banked for future spending — topped up via
-  /// [SocietyProvider.topUpReserveFund] and drawn down by expenses marked
+  /// [SocietyProvider.addReserveContributions] and drawn down by expenses marked
   /// [Expense.fundedByReserve]. Deliberately separate from
   /// [MonthData.commonPoolPaise]: reserve-funded spending must never be
   /// billed to residents a second time or appear in the monthly split.

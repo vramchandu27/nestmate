@@ -149,12 +149,65 @@ class BuildingExpensesScreen extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                '${e.category} · ${dateFormat.format(e.createdAt)}',
+                                '${e.category} · ${dateFormat.format(e.spentOn)}',
                                 style: const TextStyle(
                                   fontSize: 12,
                                   color: AppTheme.textLight,
                                 ),
                               ),
+                              // Shown to residents on purpose: a figure
+                              // that moved after they saw it is precisely
+                              // what they have reason to question, and the
+                              // explanation belongs next to the number
+                              // rather than somewhere only the admin looks.
+                              for (final c in e.changes) ...[
+                                const SizedBox(height: 8),
+                                Container(
+                                  width: double.infinity,
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 10,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.amber.withValues(
+                                      alpha: 0.10,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border(
+                                      left: BorderSide(
+                                        color: AppTheme.amber,
+                                        width: 2.5,
+                                      ),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${AppLocalizations.t('changedOnLabel')} ${dateFormat.format(c.changedAt)}'
+                                        '${c.previousAmountPaise != e.amountPaise ? '  ·  ${formatPaise(c.previousAmountPaise)} → ${formatPaise(e.amountPaise)}' : ''}',
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.w800,
+                                          color: Color(0xFF8A6D00),
+                                        ),
+                                      ),
+                                      if (c.reason.isNotEmpty) ...[
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          c.reason,
+                                          style: const TextStyle(
+                                            fontSize: 11.5,
+                                            color: AppTheme.textMedium,
+                                            height: 1.3,
+                                          ),
+                                        ),
+                                      ],
+                                    ],
+                                  ),
+                                ),
+                              ],
                               if (e.fundedByReserve) ...[
                                 const SizedBox(height: 6),
                                 Container(

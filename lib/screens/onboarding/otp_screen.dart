@@ -164,10 +164,25 @@ class _OtpScreenState extends State<OtpScreen> {
           smsCode: otp,
         );
       } on FirebaseAuthException catch (e) {
-        errorMessage = e.code == 'invalid-verification-code'
-            ? AppLocalizations.t('invalidOtp')
-            : (e.message ?? AppLocalizations.t('invalidOtp'));
-        return;
+        // Android frequently auto-reads the SMS and verifies in the
+        // background (see PhoneAuthService.sendCode's
+        // verificationCompleted). That signs the user in and consumes the
+        // verification session, so the code they then type by hand comes
+        // back as session-expired — and the app told someone who was
+        // already authenticated that their OTP had expired, with no way
+        // forward. A live session means verification did succeed; carry on
+        // with it rather than reporting a failure that didn't happen.
+        // Matched against the number being verified, not merely "someone
+        // is signed in" — a leftover session for a different phone must
+        // never let a wrong code through as that other user.
+        final signedInPhone = FirebaseAuth.instance.currentUser?.phoneNumber;
+        if (signedInPhone == null ||
+            toE164Phone(signedInPhone) != toE164Phone(phone)) {
+          errorMessage = e.code == 'invalid-verification-code'
+              ? AppLocalizations.t('invalidOtp')
+              : (e.message ?? AppLocalizations.t('invalidOtp'));
+          return;
+        }
       } on TimeoutException {
         errorMessage = AppLocalizations.t('errorOccurred');
         return;

@@ -4,6 +4,11 @@ import '../models/flat.dart';
 import '../models/month_data.dart';
 import 'money.dart';
 
+/// Amount with the rupee sign dropped — used inside the per-flat breakdown
+/// lines, where repeating "₹" on every term costs width a phone doesn't
+/// have. The figure that matters, each flat's total, keeps the symbol.
+String _plain(int paise) => formatPaise(paise).replaceFirst('₹', '');
+
 /// A single announcement-style message summarizing the whole month's
 /// expenses and how the per-flat amounts were worked out — meant to be
 /// posted once to the building's own group chat, distinct from each
@@ -91,33 +96,72 @@ String buildGroupSummaryMessage({
     ..writeln('_(Common share + Water, billed by usage)_')
     ..writeln();
 
+  // Each flat gets its total on its own line with the workings beneath it,
+  // rather than one long equation. As a single line this ran to ~90
+  // characters of unlabelled terms — "203: +₹1,000 + ₹1,328 + ₹599 −
+  // ₹1,556 = *₹1,370*" — which WhatsApp wrapped wherever it liked on a
+  // phone, and which gave a resident no way to tell what any of those
+  // numbers were for. Short labelled lines keep the breaks under our
+  // control and say what each figure means.
   for (final f in flats) {
     final bill = billFor(f.flatNumber);
     final isExempt = exemptFlatNumbers.contains(f.flatNumber);
-    final exemptNote = isExempt ? ' (tanker exempt)' : '';
-    // Rare (only non-zero after an advance recovery carries forward), but
-    // must be shown when present — otherwise the visible formula wouldn't
-    // actually add up to the stated total.
-    final openingTerm = bill.openingBalancePaise != 0
-        ? '${formatPaiseSigned(bill.openingBalancePaise)} + '
-        : '';
-    final creditTerm = bill.offsetCreditsPaise > 0
-        ? ' − ${formatPaise(bill.offsetCreditsPaise)}'
-        : '';
+
     // A flat that fronted more than its own share ends up with a credit
     // rather than an amount due — showing that as a bare negative number
     // (e.g. "₹-7,986") reads as an error, so spell out what it means
     // instead of relying on formatPaise, which isn't built for negatives.
     final totalText = bill.amountDuePaise >= 0
         ? '*${formatPaise(bill.amountDuePaise)}*'
-        : '*No payment due* (${formatPaise(-bill.amountDuePaise)} owed back to this flat)';
-    buffer.writeln(
-      '${f.flatNumber}: $openingTerm${formatPaise(bill.commonSharePaise)} + ${formatPaise(bill.waterChargePaise)}$creditTerm = $totalText$exemptNote',
-    );
+        : '*No payment due*';
+
+    buffer
+      ..writeln('*${f.flatNumber}*  $totalText')
+      ..writeln(
+        'common ${_plain(bill.commonSharePaise)} · water ${_plain(bill.waterChargePaise)}'
+        '${isExempt ? ' _(tanker exempt)_' : ''}',
+      );
+
+    // Extra lines only when there is something to explain. The society
+    // settles up every month — collect what was spent, repay whoever
+    // fronted it — so most flats are just common + water and anything more
+    // would be noise.
+    //
+    // Each on its own line rather than joined: worded plainly enough to be
+    // unambiguous, two of them on one line would run past the width a
+    // phone can show without wrapping.
+    if (bill.offsetCreditsPaise > 0) {
+      // This is the flat's own out-of-pocket spending on the building
+      // coming off their bill — which is how they get it back. The earlier
+      // wording, "paid back", read as though the society had already
+      // handed them the money, which is exactly backwards.
+      buffer.writeln(
+        'minus ${_plain(bill.offsetCreditsPaise)} you spent for society',
+      );
+    }
+    // Nothing carries forward under the monthly settle-up, so this is
+    // normally zero and never printed. Kept for the case where a balance
+    // is set anyway: without it the figures shown wouldn't add up to the
+    // total beside them.
+    if (bill.openingBalancePaise != 0) {
+      buffer.writeln(
+        'plus ${_plain(bill.openingBalancePaise.abs())} from last month',
+      );
+    }
+
+    if (bill.amountDuePaise < 0) {
+      buffer.writeln(
+        '_${formatPaise(-bill.amountDuePaise)} owed back to this flat_',
+      );
+    }
+
+    // A blank line after each flat, so sixteen of these read as sixteen
+    // separate blocks rather than one wall of numbers — without it the
+    // breakdown of one flat sits flush against the next flat's heading.
+    buffer.writeln();
   }
 
   buffer
-    ..writeln()
     ..writeln('━━━━━━━━━━━━━━━')
     ..writeln(
       'Please pay to: ${building.upiId} and share the screenshot to avoid any confusion.',

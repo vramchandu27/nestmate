@@ -15,6 +15,7 @@ import '../models/expense.dart';
 import '../models/flat.dart';
 import '../models/issue_report.dart';
 import '../models/month_data.dart';
+import '../models/reserve_contribution.dart';
 import '../models/water_month.dart';
 import '../models/work_item.dart';
 import '../utils/phone.dart';
@@ -114,6 +115,8 @@ class SocietyProvider extends ChangeNotifier {
       _buildingRef.collection('issues');
   CollectionReference<Map<String, dynamic>> get _workItemsRef =>
       _buildingRef.collection('workItems');
+  CollectionReference<Map<String, dynamic>> get _reserveContributionsRef =>
+      _buildingRef.collection('reserveContributions');
   CollectionReference<Map<String, dynamic>> get _postsRef =>
       _buildingRef.collection('posts');
   CollectionReference<Map<String, dynamic>> get _monthsRef =>
@@ -275,6 +278,7 @@ class SocietyProvider extends ChangeNotifier {
     _posts = [];
     _issues = [];
     _workItems = [];
+    _reserveContributions = [];
     _currentMonth = MonthData(id: '', label: '');
     _pastMonths = [];
     notifyListeners();
@@ -335,6 +339,16 @@ class SocietyProvider extends ChangeNotifier {
           ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
         notifyListeners();
       }, onError: (Object e) => debugPrint('SocietyProvider work items listener: $e')),
+    );
+    _subs.add(
+      _reserveContributionsRef.snapshots().listen((snap) {
+        _reserveContributions = snap.docs
+            .map((d) => ReserveContribution.fromMap(d.data()))
+            .toList()
+          ..sort((a, b) => b.collectedOn.compareTo(a.collectedOn));
+        notifyListeners();
+      }, onError: (Object e) =>
+          debugPrint('SocietyProvider reserve contributions listener: $e')),
     );
   }
 
@@ -499,6 +513,7 @@ class SocietyProvider extends ChangeNotifier {
   List<CommunityPost> _posts;
   List<IssueReport> _issues;
   List<WorkItem> _workItems;
+  List<ReserveContribution> _reserveContributions = [];
   MonthData _currentMonth;
   List<MonthData> _pastMonths;
 
@@ -509,6 +524,15 @@ class SocietyProvider extends ChangeNotifier {
   List<CommunityPost> get posts => List.unmodifiable(_posts);
   List<IssueReport> get issues => List.unmodifiable(_issues);
   List<WorkItem> get workItems => List.unmodifiable(_workItems);
+  /// Who has paid into the reserve fund, newest first.
+  List<ReserveContribution> get reserveContributions =>
+      List.unmodifiable(_reserveContributions);
+
+  /// Everything ever paid in, which is not the balance — reserve-funded
+  /// expenses draw the balance down without touching these records.
+  int get reserveCollectedPaise =>
+      _reserveContributions.fold(0, (total, c) => total + c.amountPaise);
+
   int get pendingWorkItemCount => _workItems.where((w) => !w.isDone).length;
   MonthData get currentMonth => _currentMonth;
   List<MonthData> get pastMonths => List.unmodifiable(_pastMonths);
@@ -1224,7 +1248,7 @@ class SocietyProvider extends ChangeNotifier {
   /// expense and editing one is what [previous] contributed to the reserve
   /// fund (0 for a brand-new expense). Returns false, writing nothing, if
   /// this would draw the reserve fund below zero — spending must never
-  /// silently go negative the way [topUpReserveFund] cannot fail.
+  /// silently go negative the way [addReserveContributions] cannot fail.
   Future<bool> _saveExpense(Expense expense, {Expense? previous}) async {
     final delta = _reserveContributionOf(expense) - _reserveContributionOf(previous);
     if (delta > 0 && delta > _building.reserveFundPaise) return false;
@@ -1284,18 +1308,82 @@ class SocietyProvider extends ChangeNotifier {
     await batch.commit();
   }
 
-  /// Records money collected from residents beyond this month's costs —
-  /// always additive to whatever balance remains, never a replace. Unlike
-  /// spending, a top-up can't fail, so there's nothing to validate.
-  Future<void> topUpReserveFund(int amountPaise) async {
+  /// Records [perFlatPaise] collected from each of [flatNumbers] into the
+  /// reserve fund: one contribution record per flat, plus the matching
+  /// increase to the running balance, written together so the balance can
+  /// never disagree with the records behind it.
+  ///
+  /// Per flat rather than a lump sum because residents pay at their own
+  /// pace — the admin needs to see who is still outstanding, which a
+  /// single total can't answer. Additive to whatever balance remains,
+  /// never a replace. Unlike spending, this can't fail: there's no upper
+  /// bound to validate against.
+  Future<void> addReserveContributions({
+    required List<String> flatNumbers,
+    required int perFlatPaise,
+  }) async {
+    if (flatNumbers.isEmpty || perFlatPaise <= 0) return;
+    final now = DateTime.now();
+    final records = flatNumbers.map((flatNumber) {
+      return ReserveContribution(
+        id: '${now.millisecondsSinceEpoch}_$flatNumber',
+        flatNumber: flatNumber,
+        residentName: flatByNumber(flatNumber)?.residentName ?? '',
+        amountPaise: perFlatPaise,
+        collectedOn: now,
+      );
+    }).toList();
+    final total = perFlatPaise * records.length;
+
     if (_mock) {
-      _building.reserveFundPaise += amountPaise;
+      _reserveContributions.insertAll(0, records);
+      _building.reserveFundPaise += total;
       notifyListeners();
       return;
     }
-    await _buildingRef.set({
-      'reserveFundPaise': _building.reserveFundPaise + amountPaise,
+
+    final batch = _firestore.batch();
+    for (final r in records) {
+      batch.set(_reserveContributionsRef.doc(r.id), r.toMap());
+    }
+    batch.set(_buildingRef, {
+      'reserveFundPaise': _building.reserveFundPaise + total,
     }, SetOptions(merge: true));
+    await batch.commit();
+  }
+
+  /// Removes a contribution recorded by mistake and takes its amount back
+  /// out of the balance, so deleting the record and correcting the total
+  /// are never two separate things the admin has to remember to do.
+  Future<void> deleteReserveContribution(String id) async {
+    final record = _reserveContributions.firstWhere(
+      (c) => c.id == id,
+      orElse: () => ReserveContribution(
+        id: '',
+        flatNumber: '',
+        residentName: '',
+        amountPaise: 0,
+      ),
+    );
+    if (record.id.isEmpty) return;
+
+    if (_mock) {
+      _reserveContributions.removeWhere((c) => c.id == id);
+      _building.reserveFundPaise -= record.amountPaise;
+      notifyListeners();
+      return;
+    }
+
+    final batch = _firestore.batch();
+    batch.delete(_reserveContributionsRef.doc(id));
+    batch.set(_buildingRef, {
+      // Clamped at zero: the balance is also drawn down by reserve-funded
+      // expenses, so removing an old contribution can legitimately exceed
+      // what's left, and a negative reserve would be meaningless.
+      'reserveFundPaise':
+          (_building.reserveFundPaise - record.amountPaise).clamp(0, 1 << 62),
+    }, SetOptions(merge: true));
+    await batch.commit();
   }
 
   /// Recording an advance applies each recovery straight to the named
