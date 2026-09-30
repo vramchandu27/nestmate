@@ -28,6 +28,11 @@ class ExpensesScreen extends StatelessWidget {
     final society = context.watch<SocietyProvider>();
     final month = society.currentMonth;
     final flatNumbers = society.flats.map((f) => f.flatNumber).toList();
+    // Reserve-funded expenses are paid from money already collected, not
+    // billed to anyone this month, so they belong on the Reserve Fund
+    // screen rather than mixed into the list that becomes the bill.
+    final billedExpenses =
+        month.expenses.where((e) => !e.fundedByReserve).toList();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -129,14 +134,14 @@ class ExpensesScreen extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 6),
-                      if (month.expenses.isEmpty && month.advances.isEmpty)
+                      if (billedExpenses.isEmpty && month.advances.isEmpty)
                         EmptyState(
                           icon: Icons.request_quote_outlined,
                           title: AppLocalizations.t('emptyExpensesTitle'),
                           subtitle: AppLocalizations.t('emptyExpensesSub'),
                         )
                       else ...[
-                        for (final e in month.expenses)
+                        for (final e in billedExpenses)
                               AppCard(
                                 margin: const EdgeInsets.only(bottom: 9),
                                 onTap: () => Navigator.push(

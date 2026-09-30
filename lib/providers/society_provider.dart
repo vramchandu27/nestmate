@@ -1049,9 +1049,7 @@ class SocietyProvider extends ChangeNotifier {
     if (_mock) {
       final flat = flatByNumber(flatNumber.trim());
       if (flat == null) return 'flatNotFound';
-      if (_normalizedPhone(flat.phone) != _normalizedPhone(phone)) {
-        return 'flatPhoneMismatch';
-      }
+      if (!_phoneBelongsToFlat(flat, phone)) return 'flatPhoneMismatch';
       return null;
     }
     final DocumentSnapshot<Map<String, dynamic>> doc;
@@ -1069,11 +1067,19 @@ class SocietyProvider extends ChangeNotifier {
     }
     if (!doc.exists) return 'flatNotFound';
     final flat = Flat.fromMap(doc.data()!);
-    if (_normalizedPhone(toE164Phone(flat.phone)) !=
-        _normalizedPhone(toE164Phone(phone))) {
-      return 'flatPhoneMismatch';
-    }
+    if (!_phoneBelongsToFlat(flat, phone)) return 'flatPhoneMismatch';
     return null;
+  }
+
+  /// Whether [phone] may sign in for [flat] — its primary number or any
+  /// co-resident's. A flat routinely holds two people who both use the
+  /// app, so matching only the primary number turned the second person
+  /// away with "that phone number doesn't match our records".
+  bool _phoneBelongsToFlat(Flat flat, String phone) {
+    final target = _normalizedPhone(toE164Phone(phone));
+    return flat.allPhones.any(
+      (p) => _normalizedPhone(toE164Phone(p)) == target,
+    );
   }
 
   String _normalizedPhone(String phone) =>
@@ -1189,12 +1195,31 @@ class SocietyProvider extends ChangeNotifier {
     required String residentName,
     required String phone,
     bool tankerExempt = false,
+    List<CoResident>? coResidents,
   }) async {
+    final existing = flatByNumber(flatNumber);
     final flat = Flat(
       flatNumber: flatNumber,
       residentName: residentName,
       phone: _mock ? phone : toE164Phone(phone),
       tankerExempt: tankerExempt,
+      coResidents: (coResidents ?? [])
+          .where((c) => c.phone.trim().isNotEmpty)
+          .map(
+            (c) => CoResident(
+              name: c.name.trim(),
+              // Normalized exactly like the primary number, because the
+              // security rules compare these against the E.164 phone in
+              // the caller's ID token — a number stored any other way
+              // would silently fail to authorize its own owner.
+              phone: _mock ? c.phone.trim() : toE164Phone(c.phone),
+            ),
+          )
+          .toList(),
+      // Editing a flat must not wipe what residents have already accrued;
+      // this method doubles as the edit path (it overwrites the document).
+      openingBalancePaise: existing?.openingBalancePaise ?? 0,
+      passwordSet: existing?.passwordSet ?? false,
     );
     if (_mock) {
       _flats.removeWhere((f) => f.flatNumber == flatNumber);
@@ -1202,7 +1227,32 @@ class SocietyProvider extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    await _flatsRef.doc(flatNumber).set(flat.toMap());
+    // Merged rather than replaced: a plain set() would drop fcmToken and
+    // fcmTokens, which live on this document but are written only by the
+    // push service and are not part of the Flat model.
+    await _flatsRef.doc(flatNumber).set(flat.toMap(), SetOptions(merge: true));
+  }
+
+  /// Removes a flat and the bills raised against it.
+  ///
+  /// The bills go with it deliberately: a bill whose flat no longer exists
+  /// still counts toward collection totals and still appears in the month's
+  /// figures, with nothing to attribute it to. Anyone signed in for that
+  /// flat loses access at the same time, since every rule resolves through
+  /// the flat document.
+  Future<void> deleteFlat(String flatNumber) async {
+    if (_mock) {
+      _flats.removeWhere((f) => f.flatNumber == flatNumber);
+      _currentMonth.bills.removeWhere((b) => b.flatNumber == flatNumber);
+      notifyListeners();
+      return;
+    }
+    final batch = _firestore.batch();
+    batch.delete(_flatsRef.doc(flatNumber));
+    // Only this month's bill: earlier months are settled history, and
+    // rewriting them would change totals residents have already been shown.
+    batch.delete(_billsRef.doc(flatNumber));
+    await batch.commit();
   }
 
   Future<void> joinAssociation(String code) async {

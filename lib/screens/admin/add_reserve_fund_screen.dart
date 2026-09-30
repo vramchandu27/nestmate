@@ -31,14 +31,12 @@ class _AddReserveFundScreenState extends State<AddReserveFundScreen> {
   bool _isLoading = false;
   bool _submitted = false;
 
-  /// Which flats are paying in this round. Null until the flat list is
-  /// available, then seeded with everyone — collecting from the whole
-  /// building is the normal case, and unticking a few is less work than
-  /// ticking fifteen.
-  Set<String>? _selected;
-
-  Set<String> _selectionFor(List<String> allFlatNumbers) =>
-      _selected ??= allFlatNumbers.toSet();
+  /// Which flats are paying in this round. Starts empty: money arrives one
+  /// resident at a time, so the admin opens this screen to record the two
+  /// or three people who have just paid. Pre-ticking everyone would mean
+  /// unticking twelve flats to record one payment, and would make it easy
+  /// to credit the whole building by accident.
+  final Set<String> _selected = {};
 
   @override
   void dispose() {
@@ -64,6 +62,10 @@ class _AddReserveFundScreenState extends State<AddReserveFundScreen> {
       _isLoading = false;
       _submitted = false;
       _perFlatCtrl.clear();
+      // Cleared along with the amount so the next resident who pays starts
+      // from nothing — leaving the previous ticks in place invites paying
+      // the same flats in twice.
+      _selected.clear();
     });
     // Deliberately stays on the screen rather than popping: the admin can
     // now see the payment they just recorded land in the list below, and
@@ -103,10 +105,14 @@ class _AddReserveFundScreenState extends State<AddReserveFundScreen> {
   Widget build(BuildContext context) {
     final society = context.watch<SocietyProvider>();
     final flats = society.flats;
-    final selected = _selectionFor(flats.map((f) => f.flatNumber).toList());
+    final selected = _selected;
     final perFlatPaise = parseRupeesToPaise(_perFlatCtrl.text);
     final totalPaise = perFlatPaise * selected.length;
     final contributions = society.reserveContributions;
+    // The expenses ticked "Pay from Reserve Fund" on the expense form.
+    final reserveExpenses = society.currentMonth.expenses
+        .where((e) => e.fundedByReserve)
+        .toList();
     final dateFormat = DateFormat('d MMM');
 
     return Scaffold(
@@ -128,6 +134,7 @@ class _AddReserveFundScreenState extends State<AddReserveFundScreen> {
                       _BalanceCard(
                         balancePaise: society.building.reserveFundPaise,
                         collectedPaise: society.reserveCollectedPaise,
+                        pendingPaise: totalPaise,
                       ),
                       const SizedBox(height: 22),
 
@@ -230,6 +237,65 @@ class _AddReserveFundScreenState extends State<AddReserveFundScreen> {
                         child: Text(AppLocalizations.t('saveReserveFundBtn')),
                       ),
 
+                      // What the reserve has been spent on. These are the
+                      // expenses ticked "Pay from Reserve Fund", which are
+                      // deliberately absent from the Expenses list because
+                      // they are not billed to anyone — this is the one
+                      // place they belong.
+                      if (reserveExpenses.isNotEmpty) ...[
+                        const SizedBox(height: 28),
+                        Divider(color: AppTheme.borderColor),
+                        const SizedBox(height: 14),
+                        Text(
+                          AppLocalizations.t('spentFromReserveLabel'),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w800,
+                            fontSize: 15,
+                            color: AppTheme.textDark,
+                          ),
+                        ),
+                        const SizedBox(height: 10),
+                        for (final e in reserveExpenses)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 7),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        e.name,
+                                        style: const TextStyle(
+                                          fontSize: 13.5,
+                                          fontWeight: FontWeight.w700,
+                                          color: AppTheme.textDark,
+                                        ),
+                                      ),
+                                      Text(
+                                        '${e.category} · ${dateFormat.format(e.spentOn)}',
+                                        style: const TextStyle(
+                                          fontSize: 11.5,
+                                          color: AppTheme.textLight,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                Text(
+                                  '− ${formatPaise(e.amountPaise)}',
+                                  style: const TextStyle(
+                                    fontSize: 13.5,
+                                    fontWeight: FontWeight.w800,
+                                    color: AppTheme.rose,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+
                       const SizedBox(height: 28),
                       Divider(color: AppTheme.borderColor),
                       const SizedBox(height: 14),
@@ -278,10 +344,17 @@ class _BalanceCard extends StatelessWidget {
   const _BalanceCard({
     required this.balancePaise,
     required this.collectedPaise,
+    required this.pendingPaise,
   });
 
   final int balancePaise;
   final int collectedPaise;
+
+  /// What the ticked flats add up to but has not been saved yet. Shown
+  /// beneath the balance rather than added into it: the big number is
+  /// money the society actually holds, and quietly inflating it with an
+  /// unsaved selection would misreport that.
+  final int pendingPaise;
 
   @override
   Widget build(BuildContext context) {
@@ -331,6 +404,27 @@ class _BalanceCard extends StatelessWidget {
               height: 1.1,
             ),
           ),
+          if (pendingPaise > 0) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(
+                  Icons.arrow_upward_rounded,
+                  size: 14,
+                  color: Colors.white,
+                ),
+                const SizedBox(width: 4),
+                Text(
+                  '${formatPaise(pendingPaise)} ${AppLocalizations.t('pendingOnSave')}',
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 14),
           Row(
             children: [

@@ -3,8 +3,10 @@ import 'package:provider/provider.dart';
 
 import '../../config/app_theme.dart';
 import '../../config/localization/app_localizations.dart';
+import '../../models/community_post.dart';
 import '../../providers/society_provider.dart';
 import '../../widgets/ambient_background.dart';
+import '../../widgets/app_card.dart';
 import '../../widgets/loading_overlay.dart';
 import '../../widgets/screen_header.dart';
 
@@ -108,6 +110,36 @@ class _AddNoticeScreenState extends State<AddNoticeScreen> {
                         onPressed: _isLoading ? null : _submit,
                         child: Text(AppLocalizations.t('submit')),
                       ),
+
+                      // Everything below is the notices already posted.
+                      // This screen used to be the form alone, so the admin
+                      // wrote into a void — no way to see what had gone out,
+                      // and no way to read a single reply to it.
+                      const SizedBox(height: 28),
+                      Divider(color: AppTheme.borderColor),
+                      const SizedBox(height: 14),
+                      Text(
+                        AppLocalizations.t('postedNoticesLabel'),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w800,
+                          fontSize: 15,
+                          color: AppTheme.textDark,
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      if (context.watch<SocietyProvider>().posts.isEmpty)
+                        Text(
+                          AppLocalizations.t('noNoticesYet'),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: AppTheme.textLight,
+                          ),
+                        )
+                      else
+                        for (final post
+                            in context.watch<SocietyProvider>().posts)
+                          _PostedNoticeCard(post: post),
+                      const SizedBox(height: 30),
                     ],
                   ),
                 ),
@@ -115,6 +147,129 @@ class _AddNoticeScreenState extends State<AddNoticeScreen> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// One already-posted notice, with whatever residents have said about it.
+///
+/// The comments are the point: an admin posts to ask something ("is anyone
+/// free Saturday for the tank cleaning?") and previously had no way to read
+/// a single reply from this screen.
+class _PostedNoticeCard extends StatelessWidget {
+  const _PostedNoticeCard({required this.post});
+
+  final CommunityPost post;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppCard(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  post.title,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w800,
+                    fontSize: 14.5,
+                    color: AppTheme.textDark,
+                  ),
+                ),
+              ),
+              Text(
+                post.timeLabel,
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  color: AppTheme.textLight,
+                ),
+              ),
+            ],
+          ),
+          if (post.body.isNotEmpty) ...[
+            const SizedBox(height: 5),
+            Text(
+              post.body,
+              style: const TextStyle(
+                fontSize: 13,
+                color: AppTheme.textMedium,
+                height: 1.4,
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              const Icon(
+                Icons.favorite_rounded,
+                size: 14,
+                color: AppTheme.textLight,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${post.likeCount}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textLight,
+                ),
+              ),
+              const SizedBox(width: 14),
+              const Icon(
+                Icons.mode_comment_rounded,
+                size: 13,
+                color: AppTheme.textLight,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${post.comments.length}',
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textLight,
+                ),
+              ),
+            ],
+          ),
+          for (final c in post.comments) ...[
+            const SizedBox(height: 8),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 8,
+              ),
+              decoration: BoxDecoration(
+                color: AppTheme.background,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    c.authorName,
+                    style: const TextStyle(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppTheme.textDark,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    c.text,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      color: AppTheme.textMedium,
+                      height: 1.35,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ],
       ),
     );
   }

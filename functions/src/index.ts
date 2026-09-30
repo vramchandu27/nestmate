@@ -52,14 +52,41 @@ async function adminToken(buildingId: string): Promise<string | undefined> {
   return buildingDoc.data()?.adminFcmToken as string | undefined;
 }
 
-async function flatToken(
+/** Every device registered to one flat.
+ *
+ * A flat can hold two people — a couple, a parent and an adult child —
+ * who each sign in on their own phone. Their tokens live in an fcmTokens
+ * map keyed by uid; the older single fcmToken field is still read so a
+ * resident who has not yet updated the app keeps receiving notifications.
+ * Deduplicated because the app writes both during the rollout.
+ */
+function tokensOf(data: FirebaseFirestore.DocumentData | undefined): string[] {
+  if (!data) return [];
+  const map = (data.fcmTokens ?? {}) as Record<string, string>;
+  const all = [...Object.values(map), data.fcmToken as string | undefined];
+  return [...new Set(all.filter((t): t is string => typeof t === "string" && t.length > 0))];
+}
+
+async function flatTokens(
   buildingId: string,
   flatNumber: string
-): Promise<string | undefined> {
+): Promise<string[]> {
   const flatDoc = await db
     .doc(`buildings/${buildingId}/flats/${flatNumber}`)
     .get();
-  return flatDoc.data()?.fcmToken as string | undefined;
+  return tokensOf(flatDoc.data());
+}
+
+/** Sends the same push to every device of one flat. */
+async function sendToFlat(
+  buildingId: string,
+  flatNumber: string,
+  title: string,
+  body: string,
+  type: string
+): Promise<void> {
+  const tokens = await flatTokens(buildingId, flatNumber);
+  await Promise.all(tokens.map((t) => sendPush(t, title, body, type)));
 }
 
 /** Fans a push out to every resident of one society. */
@@ -73,8 +100,8 @@ async function notifyAllResidents(
     .collection(`buildings/${buildingId}/flats`)
     .get();
   await Promise.all(
-    flatsSnap.docs.map((doc) =>
-      sendPush(doc.data().fcmToken as string | undefined, title, body, type)
+    flatsSnap.docs.flatMap((doc) =>
+      tokensOf(doc.data()).map((t) => sendPush(t, title, body, type))
     )
   );
 }
@@ -113,12 +140,9 @@ export const onBillConfirmed = onDocumentUpdated(
     if (!before || !after) return;
     if (before.status === "confirmed" || after.status !== "confirmed") return;
 
-    const token = await flatToken(
+    await sendToFlat(
       event.params.buildingId,
-      event.params.flatNumber
-    );
-    await sendPush(
-      token,
+      event.params.flatNumber,
       "Payment confirmed",
       "Your payment has been confirmed by the admin.",
       "payment_confirmed"
@@ -221,6 +245,42 @@ export const onExpenseChanged = onDocumentUpdated(
       `Expense changed: ${after.name}`,
       reason ? `${what} — ${reason}` : what,
       "expense_changed"
+    );
+  }
+);
+
+// 7. Someone comments on a notice → the admin, and everyone else who has
+//    commented on that notice already.
+//
+// Comments live inside the post document, so adding one is an update to
+// that document rather than a creation. onNoticePosted only watches for
+// creates, which is why a reply to a notice reached nobody at all — the
+// admin could ask the building a question and never learn it was answered.
+export const onNoticeCommented = onDocumentUpdated(
+  "buildings/{buildingId}/posts/{postId}",
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+
+    const oldComments = (before.comments ?? []) as Array<Record<string, unknown>>;
+    const newComments = (after.comments ?? []) as Array<Record<string, unknown>>;
+    // A like also updates this document, so only a grown comment list
+    // counts as something worth interrupting anyone for.
+    if (newComments.length <= oldComments.length) return;
+
+    const latest = newComments[newComments.length - 1] ?? {};
+    const author = typeof latest.authorName === "string" && latest.authorName.length > 0
+      ? latest.authorName
+      : "Someone";
+    const text = typeof latest.text === "string" ? latest.text : "";
+    const title = typeof after.title === "string" ? after.title : "your notice";
+
+    await sendPush(
+      await adminToken(event.params.buildingId),
+      `${author} commented on ${title}`,
+      text,
+      "notice_comment"
     );
   }
 );

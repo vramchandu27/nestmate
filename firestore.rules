@@ -46,12 +46,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/buildings/$(buildingId)/flats/$(flatNumber)).data;
     }
 
-    // A flat is "owned" the moment its stored phone matches the signed-in
-    // phone — same phone-based reasoning as admin, and (unlike a uid) it
-    // works retroactively for a flat pre-added by the admin before its
-    // resident ever signs in.
+    // A flat is "owned" the moment one of its stored phones matches the
+    // signed-in phone — same phone-based reasoning as admin, and (unlike a
+    // uid) it works retroactively for a flat pre-added by the admin before
+    // its residents ever sign in.
+    //
+    // Plural because a flat commonly holds two people who both use the
+    // app. allPhones is the denormalized list Flat.toMap writes: rules
+    // cannot look inside the coResidents array of maps, so the flat list
+    // of strings is what makes this testable at all. The primary phone is
+    // checked separately so a flat saved before allPhones existed still
+    // authorizes its own resident.
     function ownsFlat(buildingId, flatNumber) {
-      return isSignedIn() && flat(buildingId, flatNumber).phone == phone();
+      let f = flat(buildingId, flatNumber);
+      return isSignedIn() && (
+        f.phone == phone() || phone() in f.get('allPhones', [])
+      );
     }
 
     // users/{uid} — per-user data, never building-scoped. Nothing else in
@@ -141,7 +151,7 @@ service cloud.firestore {
           && request.auth.uid == uid
           && (
             isBuildingAdmin(buildingId)
-            || flat(buildingId, request.resource.data.flatNumber).phone == phone()
+            || ownsFlat(buildingId, request.resource.data.flatNumber)
           );
         // An admin can remove someone who has left; a resident can remove
         // themselves. Neither can enroll anybody else.
@@ -153,7 +163,8 @@ service cloud.firestore {
         // A resident joining has to read their own flat to validate before
         // they're a member — allowed, but strictly their own flat.
         allow read: if isMember(buildingId)
-          || (isSignedIn() && resource.data.phone == phone());
+          || (isSignedIn() && resource.data.phone == phone())
+          || (isSignedIn() && phone() in resource.data.get('allPhones', []));
         allow create: if isBuildingAdmin(buildingId);
         allow delete: if isBuildingAdmin(buildingId);
 
@@ -165,7 +176,7 @@ service cloud.firestore {
         // — never balances, tanker-exempt status, or phone.
         allow update: if isBuildingAdmin(buildingId)
           || (ownsFlat(buildingId, flatNumber)
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['residentName', 'passwordSet', 'fcmToken']));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['residentName', 'passwordSet', 'fcmToken', 'fcmTokens']));
       }
 
       match /issues/{issueId} {

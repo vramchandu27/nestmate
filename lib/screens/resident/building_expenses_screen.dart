@@ -24,6 +24,14 @@ class BuildingExpensesScreen extends StatelessWidget {
     final society = context.watch<SocietyProvider>();
     final month = society.currentMonth;
     final dateFormat = DateFormat('d MMM');
+    // Reserve-funded expenses come out of money already collected, not out
+    // of this month's bill, so listing them here made residents think they
+    // were paying for something they weren't. They belong beside the
+    // reserve balance instead.
+    final billedExpenses =
+        month.expenses.where((e) => !e.fundedByReserve).toList();
+    final reserveExpenses =
+        month.expenses.where((e) => e.fundedByReserve).toList();
 
     return Scaffold(
       backgroundColor: AppTheme.background,
@@ -110,15 +118,51 @@ class BuildingExpensesScreen extends StatelessWidget {
                         ],
                       ),
                     ),
+                    // What the reserve was actually spent on, listed under
+                    // the balance it came out of. Residents funded this
+                    // money, so where it went is theirs to see.
+                    for (final e in reserveExpenses)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 8),
+                        child: Row(
+                          children: [
+                            const SizedBox(width: 4),
+                            const Icon(
+                              Icons.savings_rounded,
+                              size: 14,
+                              color: AppTheme.textLight,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                '${e.name} · ${dateFormat.format(e.spentOn)}',
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12.5,
+                                  color: AppTheme.textMedium,
+                                ),
+                              ),
+                            ),
+                            Text(
+                              '− ${formatPaise(e.amountPaise)}',
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                fontWeight: FontWeight.w800,
+                                color: AppTheme.textMedium,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     const SizedBox(height: 16),
-                    if (month.expenses.isEmpty && month.advances.isEmpty)
+                    if (billedExpenses.isEmpty && month.advances.isEmpty)
                       EmptyState(
                         icon: Icons.receipt_long_outlined,
                         title: AppLocalizations.t('noExpensesYetTitle'),
                         subtitle: AppLocalizations.t('noExpensesYetSub'),
                       )
                     else ...[
-                      for (final e in month.expenses)
+                      for (final e in billedExpenses)
                         AppCard(
                           margin: const EdgeInsets.only(bottom: 9),
                           child: Column(

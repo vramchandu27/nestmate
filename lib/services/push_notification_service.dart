@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -133,11 +134,21 @@ class PushNotificationService {
       return;
     }
     if (flatNumber == null || flatNumber.isEmpty) return;
+    final uid = FirebaseAuth.instance.currentUser?.uid;
     await FirebaseFirestore.instance
         .collection('buildings')
         .doc(buildingId)
         .collection('flats')
         .doc(flatNumber)
-        .set({'fcmToken': token}, SetOptions(merge: true));
+        .set({
+          // Keyed by uid, because a flat can hold two people who both use
+          // the app. The single `fcmToken` below is one slot: whoever
+          // signed in last overwrote the other, and that person simply
+          // stopped receiving notifications with nothing to indicate why.
+          if (uid != null) 'fcmTokens': {uid: token},
+          // Still written so a build that predates the map, and the Cloud
+          // Function's fallback for it, keep working during the rollout.
+          'fcmToken': token,
+        }, SetOptions(merge: true));
   }
 }
