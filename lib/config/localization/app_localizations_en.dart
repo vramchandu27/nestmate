@@ -381,6 +381,9 @@ class AppLocalizationsEn {
     'splitAcrossResidentsOption': 'Split across residents this month',
     'payFromReserveOption': 'Pay from Reserve Fund',
     'reserveFundBalance': 'Reserve fund balance',
+    'emptyReserveTitle': 'Reserve fund is empty',
+    'emptyReserveBody': 'There is no money in the reserve fund, so an expense cannot be paid from it. Record some contributions on the Reserve Fund screen first.',
+    'insufficientReserveTitle': 'Not enough in the reserve',
     'insufficientReserveError':
         "This exceeds the reserve fund's current balance.",
 
@@ -388,6 +391,10 @@ class AppLocalizationsEn {
     'reserveFundLabel': 'Reserve Fund',
     'addToReserveFund': 'Add to Reserve Fund',
     'whoIsPayingLabel': 'Who is paying?',
+    'reserveBalanceNow': 'Balance now',
+    'noReserveSpendingTitle': 'Nothing spent from the reserve',
+    'noReserveSpendingSub':
+        'Expenses you mark as paid from the reserve fund will appear here.',
     'spentFromReserveLabel': 'Spent from reserve',
     'whoHasPaidLabel': 'Who has paid',
     'noContributionsYet': 'No contributions recorded yet.',
@@ -406,6 +413,17 @@ class AppLocalizationsEn {
 
     // Admin: work list
     'workListTitle': 'Work List',
+    'workItemTaskLabel': 'Task',
+    'workItemDetailsLabel': 'Details',
+    'workItemDueLabel': 'Due date',
+    'workItemNoDueDate': 'No due date',
+    'workItemAssignedLabel': 'Who is doing it',
+    'workItemAssignedHint': 'Watchman, plumber, electrician…',
+    'workItemCostLabel': 'Estimated cost',
+    'workItemCostHint': 'Optional',
+    'workItemPriorityLabel': 'Priority',
+    'normalLabel': 'Normal',
+    'urgentLabel': 'Urgent',
     'addWorkItemTitle': 'Add task',
     'workItemTitleHint': 'What needs to be done?',
     'workItemDescriptionHint': 'Description (optional)',

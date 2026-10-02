@@ -96,6 +96,49 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
         previous.amountPaise != parseRupeesToPaise(_amountCtrl.text);
   }
 
+  /// Says plainly that there is nothing in the reserve to pay from.
+  ///
+  /// The refusal used to be an inline message on the form, which is easy
+  /// to miss — the expense silently stayed billed to residents, and the
+  /// admin was left wondering why "Pay from Reserve Fund" never stuck.
+  Future<void> _showEmptyReserveDialog() async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.t('emptyReserveTitle')),
+        content: Text(AppLocalizations.t('emptyReserveBody')),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AppLocalizations.t('ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Shown when the reserve has money but not enough for this expense —
+  /// only reachable at save time, since the amount can change after the
+  /// funding option is chosen.
+  Future<void> _showInsufficientReserveDialog(int balancePaise) async {
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(AppLocalizations.t('insufficientReserveTitle')),
+        content: Text(
+          '${AppLocalizations.t('reserveFundBalance')}: ${formatPaise(balancePaise)}\n\n'
+          '${AppLocalizations.t('insufficientReserveError')}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: Text(AppLocalizations.t('ok')),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _pickSpentOn() async {
     final now = DateTime.now();
     final picked = await showDatePicker(
@@ -204,6 +247,11 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
       setState(
         () => _reserveError = AppLocalizations.t('insufficientReserveError'),
       );
+      // Also raised as a dialog: the inline message sits further down the
+      // form than the button that triggered it, so on a long form it was
+      // routinely missed and the save looked like it had simply done
+      // nothing.
+      await _showInsufficientReserveDialog(society.building.reserveFundPaise);
       return;
     }
     if (receiptFailed) {
@@ -465,7 +513,17 @@ class _AddExpenseScreenState extends State<AddExpenseScreen> {
                       _RadioTile(
                         label: AppLocalizations.t('payFromReserveOption'),
                         selected: _fundedByReserve,
-                        onTap: () => setState(() => _fundedByReserve = true),
+                        // Checked the moment the option is picked, not left
+                        // until save. An empty reserve can never pay for
+                        // anything, and saying so here avoids filling in a
+                        // whole form only to have it refused at the end.
+                        onTap: () {
+                          if (society.building.reserveFundPaise <= 0) {
+                            _showEmptyReserveDialog();
+                            return;
+                          }
+                          setState(() => _fundedByReserve = true);
+                        },
                       ),
                       if (_fundedByReserve) ...[
                         const SizedBox(height: 4),

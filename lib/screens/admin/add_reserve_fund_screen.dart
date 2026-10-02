@@ -9,7 +9,9 @@ import '../../providers/society_provider.dart';
 import '../../utils/money.dart';
 import '../../widgets/ambient_background.dart';
 import '../../widgets/loading_overlay.dart';
+import '../../widgets/nav_list_tile.dart';
 import '../../widgets/screen_header.dart';
+import 'reserve_spending_screen.dart';
 
 /// The reserve fund: its balance, a form for recording what residents pay
 /// into it, and the record of who has paid.
@@ -237,64 +239,23 @@ class _AddReserveFundScreenState extends State<AddReserveFundScreen> {
                         child: Text(AppLocalizations.t('saveReserveFundBtn')),
                       ),
 
-                      // What the reserve has been spent on. These are the
-                      // expenses ticked "Pay from Reserve Fund", which are
-                      // deliberately absent from the Expenses list because
-                      // they are not billed to anyone — this is the one
-                      // place they belong.
-                      if (reserveExpenses.isNotEmpty) ...[
-                        const SizedBox(height: 28),
-                        Divider(color: AppTheme.borderColor),
-                        const SizedBox(height: 14),
-                        Text(
-                          AppLocalizations.t('spentFromReserveLabel'),
-                          style: const TextStyle(
-                            fontWeight: FontWeight.w800,
-                            fontSize: 15,
-                            color: AppTheme.textDark,
+                      // Spending lives on its own screen: this one is
+                      // about money coming in, and mixing the two lists
+                      // on one page made it hard to tell them apart.
+                      const SizedBox(height: 22),
+                      NavListTile(
+                        icon: Icons.receipt_long_rounded,
+                        title: AppLocalizations.t('spentFromReserveLabel'),
+                        trailingText: reserveExpenses.isEmpty
+                            ? ''
+                            : '− ${formatPaise(reserveExpenses.fold(0, (t, e) => t + e.amountPaise))}',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => const ReserveSpendingScreen(),
                           ),
                         ),
-                        const SizedBox(height: 10),
-                        for (final e in reserveExpenses)
-                          Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 7),
-                            child: Row(
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        e.name,
-                                        style: const TextStyle(
-                                          fontSize: 13.5,
-                                          fontWeight: FontWeight.w700,
-                                          color: AppTheme.textDark,
-                                        ),
-                                      ),
-                                      Text(
-                                        '${e.category} · ${dateFormat.format(e.spentOn)}',
-                                        style: const TextStyle(
-                                          fontSize: 11.5,
-                                          color: AppTheme.textLight,
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                Text(
-                                  '− ${formatPaise(e.amountPaise)}',
-                                  style: const TextStyle(
-                                    fontSize: 13.5,
-                                    fontWeight: FontWeight.w800,
-                                    color: AppTheme.rose,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                      ],
+                      ),
 
                       const SizedBox(height: 28),
                       Divider(color: AppTheme.borderColor),

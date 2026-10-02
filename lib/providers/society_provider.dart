@@ -1729,11 +1729,19 @@ class SocietyProvider extends ChangeNotifier {
   Future<void> addWorkItem({
     required String title,
     String description = '',
+    DateTime? dueOn,
+    String assignedTo = '',
+    WorkPriority priority = WorkPriority.normal,
+    int estimatedCostPaise = 0,
   }) async {
     final item = WorkItem(
       id: 'work${DateTime.now().microsecondsSinceEpoch}',
       title: title,
       description: description,
+      dueOn: dueOn,
+      assignedTo: assignedTo,
+      priority: priority,
+      estimatedCostPaise: estimatedCostPaise,
     );
     if (_mock) {
       _workItems.insert(0, item);

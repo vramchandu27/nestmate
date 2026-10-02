@@ -17,12 +17,12 @@ import '../../widgets/waving_hand.dart';
 import 'add_people_screen.dart';
 import 'block_setup_screen.dart';
 import 'confirm_payments_screen.dart';
+import 'add_reserve_fund_screen.dart';
 import 'expenses_screen.dart';
 import 'flats_management_screen.dart';
 import 'issues_screen.dart';
 import 'add_notice_screen.dart';
 import 'admin_profile_screen.dart';
-import 'join_association_screen.dart';
 import 'notifications_screen.dart';
 import 'transfer_admin_screen.dart';
 import 'work_list_screen.dart';
@@ -428,13 +428,16 @@ class AdminDashboardScreen extends StatelessWidget {
                 trailingText: formatPaise(society.building.reserveFundPaise),
                 iconBackground: AppTheme.primary,
                 iconColor: Colors.white,
-                // The Expenses screen already shows the full picture —
-                // the balance, every expense (with a badge for the ones
-                // paid from reserve), and the top-up action — rather than
-                // duplicating that as a second screen.
+                // Opens the reserve fund itself. This used to land on the
+                // Expenses screen, back when the reserve was only a balance
+                // and a top-up box with no screen of its own — so tapping
+                // "Reserve Fund" showed every billed expense in the
+                // building, which is the opposite of what the reserve is.
                 onTap: () => Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const ExpensesScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const AddReserveFundScreen(),
+                  ),
                 ),
               ),
               NavListTile(
@@ -499,21 +502,15 @@ class AdminDashboardScreen extends StatelessWidget {
                   ),
                 ),
               ),
-              NavListTile(
-                icon: Icons.groups_rounded,
-                title: AppLocalizations.t('associationRow'),
-                trailingText: society.association.joined
-                    ? AppLocalizations.t('joinedLabel')
-                    : null,
-                iconBackground: AppTheme.primary,
-                iconColor: Colors.white,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const JoinAssociationScreen(),
-                  ),
-                ),
-              ),
+              // Associations — several buildings in one gated community
+              // sharing a watchman or a water contract — are not built yet.
+              // SocietyProvider.joinAssociation currently accepts any code
+              // and joins the society to a hardcoded "Shilpa Pine Valley"
+              // with 20 buildings, writing that invented name into their
+              // own document. Hidden rather than deleted: the screen and
+              // model are worth keeping for when this is built properly.
+              //
+              // if (false) NavListTile(association) — see git history.
               NavListTile(
                 icon: Icons.swap_horizontal_circle_rounded,
                 title: AppLocalizations.t('transferAdminRole'),
